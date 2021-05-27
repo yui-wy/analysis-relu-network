@@ -62,6 +62,11 @@ class AnalysisReLUNetUtils(object):
         return torch.cat([weight_graph, bias_graph], dim=1)
 
     def _calulateR(self, funcList, point):
+        """ 
+        计算多边形中的最小圆的直径:
+        * max_{x,r} r  -> min_{x,r} (bound-r)
+        * s.t.  (AX+B-r||A|| >= 0)
+        """
         def cfunc(function, normA):
             def xx(x):
                 return np.matmul(x[:-1], function[:-1]) + function[-1] - normA * x[-1]
@@ -185,7 +190,7 @@ class AnalysisReLUNetUtils(object):
             funcs = None
         return funcs
 
-    def _getLayerAreaNum(self, cFuncList, pFuncList, pArea, layerNum, point):
+    def _getLayerArea(self, cFuncList, pFuncList, pArea, layerNum, point):
         """
         1. 验证funcList在pFuncList中的存在性。
             a. 存在, 切割,并且划出计算子区域, 以及其中的point, 递归。
@@ -200,28 +205,30 @@ class AnalysisReLUNetUtils(object):
                 1: >= 0;
         """
         areaNum = 0
-        isLast = (layerNum == self.countLayers)
-        nextLayerNum = 1 + layerNum
-        if cFuncList.shape[0] == 0:
-            num = 1 if isLast else self._getNetAreaNum(point, pFuncList, pArea, nextLayerNum)
-            areaNum += num
+        cFuncList = self._calculateFunc(cFuncList, pFuncList, pArea, point)
+        if cFuncList is None:
+            areaNum += self._wapperGetLayerAreaNum(point, pFuncList, pArea, layerNum)
         else:
-            cFuncList = self._calculateFunc(cFuncList, pFuncList, pArea, point)
-            if cFuncList is None:
-                num = 1 if isLast else self._getNetAreaNum(point, pFuncList, pArea, nextLayerNum)
-                areaNum += num
-            else:
-                layerAreas = WapperArea(cFuncList.shape[0])
-                for cArea in layerAreas:
-                    # 组合线性区域
-                    nextPoint, nextFuncList, nextArea, isExist = self._calulatePoint(cFuncList, cArea, pFuncList, pArea, point, layerNum)
-                    if not isExist:
-                        continue
-                    num = 1 if isLast else self._getNetAreaNum(nextPoint, nextFuncList, nextArea, nextLayerNum)
-                    areaNum += num
+            layerAreas = WapperArea(cFuncList.shape[0])
+            for cArea in layerAreas:
+                # 组合线性区域
+                nextPoint, nextFuncList, nextArea, isExist = self._calulatePoint(cFuncList, cArea, pFuncList, pArea, point, layerNum)
+                if not isExist:
+                    continue
+                areaNum += self._wapperGetLayerAreaNum(nextPoint, nextFuncList, nextArea, layerNum)
         return areaNum
 
-    def _getNetAreaNum(self, point, pfuncList, pArea, layerNum):
+    def _wapperGetLayerAreaNum(self, point, funcList, area, layerNum):
+        isLast = (layerNum == self.countLayers)
+        nextLayerNum = 1 + layerNum
+        if isLast:
+            num = 1
+            self.regist(point, funcList, area)
+        else:
+            num = self._getLayerAreaNum(point, funcList, area, nextLayerNum)
+        return num
+
+    def _getLayerAreaNum(self, point, pfuncList, pArea, layerNum):
         """
         1. 从区域中找到合适的点;
         2. 通过点带入神经网络, 得到超平面;
@@ -239,15 +246,19 @@ class AnalysisReLUNetUtils(object):
         # 通过点得到函数
         cFuncList = self._getFuncList(point, layerNum).cpu()
         # 计算区域数量
-        layerAreaNum = self._getLayerAreaNum(cFuncList, pfuncList, pArea, layerNum, point)
+        layerAreaNum = self._getLayerArea(cFuncList, pfuncList, pArea, layerNum, point)
         return layerAreaNum
 
-    def getAreaNum(self, net, xrange=1, countLayers=-1, pFuncList=None, pArea=None):
+    def getAreaNum(self, net, xrange=1, countLayers=-1, pFuncList=None, pArea=None, saveArea=False):
         assert isinstance(net, AnalysisNet), "the type of net must be \"AnalysisNet\"."
-        print("Start Get region number...")
-        self.net = net
-        self.countLayers = self.net._layer_num if countLayers == -1 else countLayers
+        assert countLayers != -1, "countLayers must >= 0."
         assert xrange is not None, "Please set range."
+        print("Start Get region number...")
+        self.net, self.countLayers = net, countLayers
+        if saveArea:
+            self.saveArea = saveArea
+            self.regist = self._updateAreaListRegist
+            self.areaFuncs, self.areas, self.points = [], [], []
         self.xrange = xrange
         if pArea is not None:
             pFuncList, pArea = pFuncList, pArea
@@ -259,7 +270,19 @@ class AnalysisReLUNetUtils(object):
             pArea = torch.zeros(self.net.size_Prod*2, dtype=torch.int8)
             pArea[0:self.net.size_Prod] = 1
             point = np.zeros([*self.net._input_size])
-        return self._getNetAreaNum(point, pFuncList, pArea, 0)
+        return self._getLayerAreaNum(point, pFuncList, pArea, 0)
+
+    def _defaultRegist(self, point, funcList, area):
+        return
+
+    def _updateAreaListRegist(self, point, funcList, area):
+        self.areaFuncs.append(funcList)
+        self.areas.append(area)
+        self.points.append(point)
+
+    def getAreaData(self):
+        assert self.saveArea, "Not save some area infomation"
+        return self.areaFuncs, self.areas, self.points
 
 
 def func(function):

@@ -1,17 +1,11 @@
-import math
-import os
-import os.path as osp
-
 import numpy as np
+import polytope as pc
 import torch
 import torch.nn as nn
-import torchvision
-from torch.utils.data import dataloader
+import matplotlib.pyplot as plt
 
-from analysis_lib.utils import areaUtils
-from dataset import cifar, mnist
-from nets.TestNet import TestMNISTNet
 from analysis_lib import analysisNet
+from analysis_lib.utils import areaUtils
 
 GPU_ID = 0
 device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
@@ -25,9 +19,9 @@ class TestNet(analysisNet.AnalysisNet):
         super(TestNet, self).__init__(input_size)
         self.relu = nn.ReLU()
         self.fc1 = nn.Linear(2, 16, bias=True)
-        self.fc2 = nn.Linear(16, 32, bias=True)
-        self.fc3 = nn.Linear(32, 32, bias=True)
-        self.fc4 = nn.Linear(32, 1, bias=True)
+        self.fc2 = nn.Linear(16, 16, bias=True)
+        self.fc3 = nn.Linear(16, 16, bias=True)
+        self.fc4 = nn.Linear(16, 1, bias=True)
 
     def forward(self, x):
         x = self.fc1(x)
@@ -62,5 +56,20 @@ class TestNet(analysisNet.AnalysisNet):
 
 net = TestNet((2,)).to(device)
 au = areaUtils.AnalysisReLUNetUtils(device=device)
-num = au.getAreaNum(net, 1, countLayers=3)
-print(num)
+num = au.getAreaNum(net, 1, countLayers=3, saveArea=True)
+funcs, areas, points = au.getAreaData()
+
+ax = plt.subplot()
+for i in range(num):
+    #  to <= 0
+    func, area, point = funcs[i], areas[i], points[i]
+    # print(f"Func: {func}, area: {area}, point: {point}")
+    func = (1 - area * 2).view(-1, 1) * func
+    func = func.numpy()
+    A, B = func[:, :-1], -func[:, -1]
+    p = pc.Polytope(A, B)
+    p.plot(ax, color=np.random.rand(3), alpha=0.7, linestyle='-', linewidth=0.1, edgecolor='w')
+
+plt.xlim(-1, 1)
+plt.ylim(-1, 1)
+plt.show()
