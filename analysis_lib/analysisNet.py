@@ -10,10 +10,8 @@ from analysis_lib import timer
 
 class AnalysisNet(nn.Module):
     """
-    Getting weight_graph and bias_graph. \n
-    突然发现一阶导数就能做到的事情, 我tmd费劲心思写这东西有啥用................... 就当锻炼代码水平算了\n
-    更高的效率去理解DNN的参数运行方式
-    添加参数的运算方式并且存储
+    Getting weight_graph and bias_graph from network.
+
     args:
         input_size : test input_size: (3, 32, 32) \n
     """
@@ -52,15 +50,17 @@ class AnalysisNet(nn.Module):
 
     def forward_graph(self, x, pre_weight_graph=None, pre_bias_graph=None):
         """
-        torch.no_grad \n
-        net.eval()
+            >>> net.eval()
+            >>> with torch.no_grad():
+                    forward_graph(...)
         """
         raise NotImplementedError
 
     def forward_graph_Layer(self, x, Layer=-1, pre_weight_graph=None, pre_bias_graph=None):
         """
-        torch.no_grad \n
-        net.eval()
+            >>> net.eval()
+            >>> with torch.no_grad():
+                    forward_graph_Layer(...)
         """
         raise NotImplementedError
 
@@ -422,7 +422,6 @@ class AnalysisNet(nn.Module):
             hook_x = torch.zeros_like(x, device=self._device)
             hook_x = pad_func(hook_x)
             hook_x = torch.zeros(hook_x.shape[0], out_channels, *hook_x.shape[1:], device=self._device)
-
             # origin
             for h in range(h_n):
                 for w in range(w_n):
@@ -442,17 +441,9 @@ class AnalysisNet(nn.Module):
         # ===============================================================
         # speed 1
         # rm w loop
-        # create hook of x
-        # hook_x :(n, c_out, c_in, h_in, w_in)
         else:
-            pad_func = nn.ConstantPad2d(padding, 0)
-            hook_x = torch.zeros_like(x, device=self._device)
-            hook_x = pad_func(hook_x)
-            hook_x = torch.zeros(hook_x.shape[0], out_channels, *hook_x.shape[1:], device=self._device)
-
             # hook_kernel_weight : (w_out, c_out, c_in, k , w_in+2padding)
             hook_kernel_weight = torch.zeros(w_n, out_channels, in_channels, kernel_size[0], x.size(3)+padding[1]*2, device=self._device)
-
             for w in range(w_n):
                 hook_kernel_weight[w, :, :, :, w*stride[1]: w*stride[1]+kernel_size[1]] += kernel_weight
             # hook_kernel_weight : (w_out, c_out, c_in, k , w_in)

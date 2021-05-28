@@ -9,13 +9,13 @@ import torchvision
 from torch.utils.data import dataloader
 
 from analysis_lib.utils import areaUtils
-from dataset import cifar, mnist
-from nets.TestNet import TestMNISTNet
+from dataset import mnist
+from nets.TestNet import TestTNet
 
-TAG = "Linear-16x4"
+TAG = "Linear-32x4"
 GPU_ID = 0
 MAX_EPOCH = 100
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 LR = 1e-3
 ROOT_DIR = osp.abspath("./")
 DATA_ROOT_DIR = osp.join(ROOT_DIR, 'data', 'mnist')
@@ -37,7 +37,6 @@ def transform_test(img):
     transform = torchvision.transforms.Compose([
         torchvision.transforms.ToTensor(),
         torchvision.transforms.Normalize([0.1307, ], [0.3081, ])
-        # torchvision.transforms.Normalize([0, 0, 0], [1, 1, 1])
     ])
     img = transform(img)
     return img
@@ -69,29 +68,29 @@ def getRegion(net, name, logPath, au, countLayers):
     return num
 
 
-if __name__ == "__main__":
-    regionLog = open(os.path.join(SAVE_DIR, "region.log"), 'w')
+def train():
+    # regionLog = open(os.path.join(SAVE_DIR, "region.log"), 'w')
 
-    net = TestMNISTNet((784,)).to(device)
-    au = areaUtils.AnalysisReLUNetUtils(device=device)
+    net = TestTNet((784,)).to(device)
+    # au = areaUtils.AnalysisReLUNetUtils(device=device)
     # num = au.getAreaNum(net, 1, countLayers=4)
 
     train_mnist_set = mnist.MNIST(DATA_ROOT_DIR, transform=transform_test)
     val_mnist_set = mnist.MNIST(DATA_ROOT_DIR, transform=transform_test, train=False)
 
-    trainLoader = dataloader.DataLoader(train_mnist_set, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True, num_workers=2)
-    valLoader = dataloader.DataLoader(val_mnist_set, batch_size=BATCH_SIZE, pin_memory=True, num_workers=2)
+    trainLoader = dataloader.DataLoader(train_mnist_set, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+    valLoader = dataloader.DataLoader(val_mnist_set, batch_size=BATCH_SIZE, pin_memory=True)
 
     optim = torch.optim.Adam(net.parameters(), lr=LR, weight_decay=1e-4)
     ce = torch.nn.CrossEntropyLoss()
-    regionNum = {}
+    regionNum, stepAccMap, epochAccMap = {}, {}, {}
     steps = [10, 30, 70, 100, 150]
     epochs = [1, 2, 4, 6, 8, 10, 15, 20]
-
+    torch.save(net.state_dict(), osp.join(MODEL_DIR, f'net_0.pth'))
     # regionNum[f"epoch-0"] = getRegion(net, f"epoch-0", regionLog, au, 3)
     for i in range(MAX_EPOCH):
         net.train()
-        totalStep = math.ceil(len(train_mnist_set) / BATCH_SIZE)
+        # totalStep = math.ceil(len(train_mnist_set) / BATCH_SIZE)
         for j, (x, y) in enumerate(trainLoader, 1):
             x, y = x.to(device), y.long().to(device)
             x = net(x.view(-1, 784))
@@ -104,6 +103,9 @@ if __name__ == "__main__":
             if i == 1 and (j in steps):
                 net.eval()
                 # regionNum[f"epoch-{i}-{j}"] = getRegion(net, f"epoch-{i}-{j}", regionLog, au, 3)
+                val_acc = val_net(net, valLoader)
+                stepAccMap[j] = val_acc
+                torch.save(net.state_dict(), osp.join(MODEL_DIR, f'net-1_{j}.pth'))
             print(f"Epoch: {i+1} / {MAX_EPOCH}, Loss: {loss:.4f}, Acc: {acc:.4f}")
 
         if (i in epochs):
@@ -111,9 +113,24 @@ if __name__ == "__main__":
             # regionNum[f"epoch-{i}"] = getRegion(net, f"epoch-{i}", regionLog, au, 3)
 
         val_acc = val_net(net, valLoader)
+        epochAccMap[i+1] = val_acc
         print(f"Epoch: {i+1} / {MAX_EPOCH}, Val_Acc: {val_acc:.4f}")
-        if (i + 1) % 5 == 0:
+        if (i + 1) % 1 == 0:
             print("Save net....")
             torch.save(net.state_dict(), osp.join(MODEL_DIR, f'net_{i+1}.pth'))
 
-    torch.save(regionNum, osp.join(SAVE_DIR, "regionNum.pkl"))
+    netSave = {
+        "regionNum": regionNum,
+        "stepAccMap": stepAccMap,
+        "epochAccMap": epochAccMap,
+    }
+
+    torch.save(netSave, osp.join(SAVE_DIR, "netSave.pkl"))
+
+
+def lab():
+    pass
+
+
+if __name__ == "__main__":
+    train()

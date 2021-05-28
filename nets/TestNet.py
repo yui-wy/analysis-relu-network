@@ -3,14 +3,14 @@ from analysis_lib import analysisNet
 import torch.nn as nn
 
 
-class TestMNISTNet(analysisNet.AnalysisNet):
+class TestTNet(analysisNet.AnalysisNet):
     def __init__(self, input_size=(2,)):
-        super(TestMNISTNet, self).__init__(input_size)
+        super(TestTNet, self).__init__(input_size)
         self.relu = nn.ReLU()
-        self.fc1 = nn.Linear(784, 16, bias=True)
-        self.fc2 = nn.Linear(16, 16, bias=True)
-        self.fc3 = nn.Linear(16, 16, bias=True)
-        self.fc4 = nn.Linear(16, 10, bias=True)
+        self.fc1 = nn.Linear(input_size[0], 32, bias=True)
+        self.fc2 = nn.Linear(32, 32, bias=True)
+        self.fc3 = nn.Linear(32, 32, bias=True)
+        self.fc4 = nn.Linear(32, 10, bias=True)
 
     def forward(self, x):
         x = self.fc1(x)
