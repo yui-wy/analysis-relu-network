@@ -19,10 +19,10 @@ class TestNet(analysisNet.AnalysisNet):
     def __init__(self, input_size=(2,)):
         super(TestNet, self).__init__(input_size)
         self.relu = nn.ReLU()
-        self.fc1 = nn.Linear(2, 20, bias=True)
-        self.fc2 = nn.Linear(20, 20, bias=True)
-        self.fc3 = nn.Linear(20, 20, bias=True)
-        self.fc4 = nn.Linear(20, 3, bias=True)
+        self.fc1 = nn.Linear(2, 32, bias=True)
+        self.fc2 = nn.Linear(32, 32, bias=True)
+        self.fc3 = nn.Linear(32, 32, bias=True)
+        self.fc4 = nn.Linear(32, 3, bias=True)
 
     def forward(self, x):
         x = self.fc1(x)
@@ -71,8 +71,10 @@ for i in range(num):
     func = func.numpy()
     A, B = func[:, :-1], -func[:, -1]
     p = pc.Polytope(A, B)
-    p.plot(ax, color=np.random.rand(3), alpha=1, linestyle='-', linewidth=0.2, edgecolor='w')
+    p.plot(ax, color=np.random.uniform(0.0, 1., 3), alpha=1, linestyle='-', linewidth=0.2, edgecolor='w')
 
 plt.xlim(-1, 1)
 plt.ylim(-1, 1)
 plt.show()
+
+# [60,60,60,60] 21min

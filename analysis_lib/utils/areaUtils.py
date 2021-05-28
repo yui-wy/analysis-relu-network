@@ -1,18 +1,23 @@
 # import numpy as np
+import numpy as np
+from ..analysisNet import AnalysisNet
+from torch.onnx.symbolic_opset9 import dim
+import sys
+from typing import Iterable
+from numpy.core.fromnumeric import size
+from scipy.integrate._ivp.radau import C
 import torch
 import logging
-from scipy.optimize import minimize
+from scipy.optimize import minimize, Bounds
 import time
-
-from ..analysisNet import AnalysisNet
-
-import numpy as np
+from collections import deque
 
 
 class WapperArea(object):
     """
-    修改area生成方式
-    最小域冲突
+    修改area生成方式;
+    最小域冲突;
+    基于最小域的搜索方案;
     """
 
     def __init__(self, funcNum):
@@ -20,6 +25,9 @@ class WapperArea(object):
         self.list[0] = -1
         self.idxList = 0
         self.sRSign = torch.Tensor().type(torch.int8)
+        self.area = deque()
+        # deque(maxlen=self.videoFps*2)
+        self.areaIdx = 0
 
     def __iter__(self):
         return self
@@ -27,31 +35,35 @@ class WapperArea(object):
     def __next__(self):
         try:
             self._updateList()
-            while self.checkList():
+            while self.checkArea(self.output):
                 self._updateList()
         except:
             raise StopIteration
         return self.output
 
     def updateIndex(self, areaSign):
+        if self.checkArea(areaSign):
+            return
         self.sRSign = torch.cat([self.sRSign, areaSign.view(1, -1)], dim=0)
 
-    def checkList(self):
+    def registArea(self, areaSign):
+        if not self.checkArea(areaSign):
+            self.area.append(areaSign)
+
+    def registAreas(self, areaSigns: torch.Tensor):
+        for area in areaSigns:
+            if not self.checkArea(area):
+                self.area.append(area)
+
+    def checkArea(self, area: torch.Tensor):
         try:
-            a = ((self.sRSign.abs() * self.output) - self.sRSign).abs().sum(dim=1)
+            a = ((self.sRSign.abs() * area) - self.sRSign).abs().sum(dim=1)
             return (0 in a)
         except:
             return False
 
     def _updateList(self):
-        self.list[0] += 1
-        for i in range(self.idxList + 1):
-            if self.list[i] == 2:
-                self.list[i] = 0
-                self.list[i+1] += 1
-                if i == self.idxList:
-                    self.idxList += 1
-        self.output = self.list * 2 - 1
+        self.output = self.area.popleft()
 
 
 class AnalysisReLUNetUtils(object):
@@ -102,8 +114,8 @@ class AnalysisReLUNetUtils(object):
         * max_{x,r} r
         * s.t.  (AX+B-r||A|| >= 0)
 
-        To minimize: (bound - r >= 0)
-        * min_{x,r} (bound-r)
+        To minimize: (-r)
+        * min_{x,r} (-r)
         * s.t.  (AX+B-r||A|| >= 0)
 
         [1] Zhang, X. , and  D. Wu . "Empirical Studies on the Properties of Linear Regions in Deep Neural Networks." (2020).
@@ -120,12 +132,14 @@ class AnalysisReLUNetUtils(object):
 
         def ccfunc(funcion):
             def xx(x):
-                return self.bound - x[-1]
+                # return -np.log(x[-1])
+                return -x[-1]
             return xx
 
         def jacCcfunc(function):
             def xx(x):
                 output = np.zeros_like(function)
+                # output[-1] -= (1 / x[-1])
                 output[-1] -= 1
                 return output
             return xx
@@ -139,66 +153,83 @@ class AnalysisReLUNetUtils(object):
                 'jac': jacCfunc(funcList[i], normA[i]),
             }
             cons.append(con)
-
+        cons.extend(self.con)
         function = ccfunc(funcList[0])
         res = minimize(function, point, method='SLSQP', constraints=cons, jac=jacCcfunc(funcList[0]), tol=1e-10, options={"maxiter": 100})
         x, r = res.x[:-1], res.x[-1]
         return x, r
 
-    def _calulatePoint(self, cFuncList, cArea, pFuncList, pArea, point, layerNum):
+    def _calulateAreaPoint(self, cFuncList, cArea, pFuncList, pArea, point, layerNum):
         """
         并且简化区域，并且得到一个计算点，如果(aX + b)最小值为0，此超平面就是边界。
 
         *   min_{x} (aX + b);
         *   s.t. AX + B >= 0;
         """
-        funcList, area = torch.cat([pFuncList, cFuncList], dim=0), torch.cat([pArea, cArea], dim=0)
+        funcList, area = torch.cat([cFuncList, pFuncList], dim=0), torch.cat([cArea, pArea], dim=0)
         conFuncs = area.view(-1, 1) * funcList
         funcList, conFuncs, area = funcList.numpy(), conFuncs.numpy(), area.numpy()
         conArea = np.ones_like(area)
-        nextFuncList, nextArea, cons = [], [], []
-        for i in range(conFuncs.shape[0]):
-            con = {
-                'type': 'ineq',
-                'fun': conFunc(conFuncs[i]),
-                'jac': conJac(conFuncs[i]),
-            }
-            cons.append(con)
+        nextFuncList, nextArea, cons, funcPoints = [], [], [], []
         NewPoint = None
         # ==================================================
         # 改用计算多边形最小直径
+        r = np.random.uniform(0, self.bound)
         if layerNum == 0:
-            point = np.random.uniform(-self.bound, self.bound, [conFuncs[0].shape[0], ])
-        else:
-            r = np.random.uniform(-self.bound, self.bound)
-            point = np.append(point, r)
+            point = np.random.uniform(-self.bound, self.bound, [conFuncs[0].shape[0] - 1, ])
+        point = np.append(point, r)
         x, r = self._calulateR(conFuncs, point)
         result = np.matmul(conFuncs[:, :-1], x.T) + conFuncs[:, -1]
         result = np.where(result >= -1e-10, 1, 0)
         if np.array_equal(result, conArea):
             self.logger.info(f"-----------point Layer: {layerNum}--------------")
-            # self.logger.info(f"New Point: {x}")
-            self.logger.info(f"Distance: {r}")
+            self.logger.info(f"Distance: {r}, x: {x}")
             NewPoint = x
         # ==================================================
         if NewPoint is None:
-            return None, None, None, False, None
+            return None, None, None, None, None, False
+
+        for i in range(conFuncs.shape[0]):
+            con = {
+                'type': 'ineq',
+                'fun': conFunc1(conFuncs[i]),
+                'jac': conJac(conFuncs[i]),
+            }
+            cons.append(con)
         # 通过优化点优化最简区域
+        cons.extend(self.con)
         cAreaSign = torch.zeros_like(cArea)
         for i in range(conFuncs.shape[0]):
-            function = conFunc(conFuncs[i])
-            res = minimize(function, NewPoint, method='SLSQP', constraints=cons, jac=conJac(conFuncs[i]), tol=1e-10, options={"maxiter": 100})
-            if res.fun <= 1e-9:
+            function = func(conFuncs[i])
+            cons[i]['fun'] = conFunc(conFuncs[i])
+            res = minimize(function, NewPoint, method='SLSQP', constraints=cons, jac=funcJac(conFuncs[i]), tol=1e-20, options={"maxiter": 100})
+            if np.abs(res.fun) < 1e-15:
                 nextFuncList.append(torch.from_numpy(funcList[i]))
                 nextArea.append(area[i])
-            if i >= pArea.shape[0]:
-                cAreaSign[i-pArea.shape[0]] = area[i]
+                # 寻找相邻域
+                # print(i, cArea.shape[0], res.fun)
+                if i < cArea.shape[0]:
+                    cAreaSign[i] = area[i]
+                    x, a, b = res.x, conFuncs[i, :-1], conFuncs[i, -1]
+                    # -------------------------------
+                    # f = cFuncList.numpy()
+                    # ress = (np.matmul(f[:, :-1], x) + f[:, -1]) * cArea.numpy()
+                    # print(ress.tolist())
+                    # -------------------------------
+                    if res.fun < 0:
+                        k = 0
+                    elif res.fun > 0:
+                        k = -2 * (np.matmul(a, x) + b + 2e-16) / np.matmul(a, a)
+                    else:
+                        k = -(np.matmul(a, x) + b + 2e-16) / np.matmul(a, a)
+                    x_p = x + k * a
+                    funcPoints.append(torch.from_numpy(x_p))
         nextFuncList = torch.stack(nextFuncList)
+        funcPoints = torch.stack(funcPoints)
         nextArea = torch.tensor(nextArea, dtype=torch.int8)
-        cAreaSign = torch.tensor(cAreaSign, dtype=torch.int8)
         nextPoint = NewPoint
-        self.logger.info(f"Function size: {nextFuncList.size()};")
-        return nextPoint, nextFuncList, nextArea, True, cAreaSign
+        # self.logger.info(f"Function size: {nextFuncList.size()};")
+        return nextPoint, nextFuncList, nextArea, cAreaSign.type(torch.int8), funcPoints, True
 
     def _calculateFunc(self, funcList, pFuncList, pArea, point):
         """
@@ -217,11 +248,12 @@ class AnalysisReLUNetUtils(object):
                 'jac': conJac(conFuncs[i]),
             }
             cons.append(con)
+        cons.extend(self.con)
         # 判断每个函数是否穿过区域
         for i in range(funcList.shape[0]):
             function = func(funcList[i])
-            res = minimize(function, point, method='SLSQP', constraints=cons, jac=funcJac(funcList[i]), tol=1e-10)
-            if res.fun <= 1e-9:
+            res = minimize(function, point, method='SLSQP', constraints=cons, jac=funcJac(funcList[i]), tol=1e-20, options={"maxiter": 100})
+            if res.fun <= 1e-16:
                 funcs.append(torch.from_numpy(funcList[i]))
                 points.append(torch.from_numpy(res.x))
         if len(funcs) != 0:
@@ -251,16 +283,23 @@ class AnalysisReLUNetUtils(object):
             areaNum += self._wapperGetLayerAreaNum(point, pFuncList, pArea, layerNum)
         else:
             layerAreas = WapperArea(cFuncList.shape[0])
-            count = 0
+            pointAreas = self._getAreaFromPoint(points, cFuncList)
+            layerAreas.registAreas(pointAreas)
             for cArea in layerAreas:
-                count += 1
-                # print(f"LayerNum: {layerNum}, count: {count}")
-                nextPoint, nextFuncList, nextArea, isExist, cAreaSign = self._calulatePoint(cFuncList, cArea, pFuncList, pArea, point, layerNum)
-                if not isExist:
+                nextPoint, nextFuncList, nextArea, cAreaSign, funcPoints, isExist = self._calulateAreaPoint(cFuncList, cArea, pFuncList, pArea, point, layerNum)
+                if not isExist and (nextFuncList is None):
                     continue
                 layerAreas.updateIndex(cAreaSign)
+                pointAreas = self._getAreaFromPoint(funcPoints, cFuncList)
+                layerAreas.registAreas(pointAreas)
                 areaNum += self._wapperGetLayerAreaNum(nextPoint, nextFuncList, nextArea, layerNum)
         return areaNum
+
+    def _getAreaFromPoint(self, points: torch.Tensor, funcList: torch.Tensor):
+        a, b = funcList[:, :-1].double(), funcList[:, -1].double()
+        res = torch.sign(torch.matmul(points, a.T) + b)
+        res = torch.where(res == 0, 1., res).type(torch.int8)
+        return res
 
     def _wapperGetLayerAreaNum(self, point, funcList, area, layerNum):
         isLast = (layerNum == self.countLayers)
@@ -283,12 +322,12 @@ class AnalysisReLUNetUtils(object):
         return layerAreaNum
 
     def getAreaNum(self, net: AnalysisNet, bound: float = 1.0, countLayers: int = -1, pFuncList: torch.Tensor = None, pArea: torch.Tensor = None, saveArea: bool = False):
-        """  
-        TODO: 目前只支持方形的输入空间画图，需要修改。  
+        """
+        TODO: 目前只支持方形的输入空间画图，需要修改。
 
-        Area:   
-            * -1: aX+b < 0;
+        Area:
             *  1: aX+b >= 0;
+            * -1: aX+b < 0;
 
         Function: a tensor (m)
             * a: tensor[ : -1];
@@ -305,8 +344,9 @@ class AnalysisReLUNetUtils(object):
         self.net, self.countLayers, self.bound, self.saveArea = net.to(self.device), countLayers, bound, saveArea
         self.regist = self._updateAreaListRegist if saveArea else self._defaultRegist()
         self.areaFuncs, self.areas, self.points = [], [], []
+        self.initCon(self.net.size_Prod)
         if (pFuncList is not None) and (pArea is not None):
-            point = self._calulatePoint(pFuncList, pArea)
+            point = self._calulateAreaPoint(pFuncList, pArea)
         else:
             pFuncList1 = torch.cat([torch.eye(self.net.size_Prod), torch.zeros(self.net.size_Prod, 1)-self.bound], dim=1)  # < 0
             pFuncList2 = torch.cat([torch.eye(self.net.size_Prod), torch.zeros(self.net.size_Prod, 1)+self.bound], dim=1)  # >=0
@@ -324,8 +364,17 @@ class AnalysisReLUNetUtils(object):
         self.areas.append(area)
         self.points.append(point)
 
+    def initCon(self, num):
+        self.con = []
+        con = {
+            'type': 'ineq',
+            'fun': boundFun,
+            'jac': boundJac,
+        }
+        self.con.append(con)
+
     def getAreaData(self):
-        """  
+        """
         Return:
             areaFuncs: [tensor,];
             areas: [tensor,];
@@ -356,8 +405,23 @@ def conFunc(function):
     return xx
 
 
+def conFunc1(function):
+    """ aX+b """
+    def xx(x):
+        return np.matmul(x, function[:-1]) + function[-1] - 1e-8
+    return xx
+
+
 def conJac(function):
     """ {a_i;i in (0, n)} """
     def xx(x):
         return function[:-1]
     return xx
+
+
+def boundFun(x):
+    return np.sum(np.square(x)) - 1e-32
+
+
+def boundJac(x):
+    return np.array([2*x[i] for i in range(x.shape[0])])
