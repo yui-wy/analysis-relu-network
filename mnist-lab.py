@@ -10,7 +10,7 @@ from torch.utils.data import dataloader
 
 from analysis_lib.utils import areaUtils
 from dataset import mnist
-from nets.TestNet import TestTNet
+from nets.TestNet import TestTNetLinear
 
 TAG = "Linear-32x4"
 GPU_ID = 0
@@ -71,7 +71,7 @@ def getRegion(net, name, logPath, au, countLayers):
 def train():
     # regionLog = open(os.path.join(SAVE_DIR, "region.log"), 'w')
 
-    net = TestTNet((784,)).to(device)
+    net = TestTNetLinear((784,)).to(device)
     # au = areaUtils.AnalysisReLUNetUtils(device=device)
     # num = au.getAreaNum(net, 1, countLayers=4)
 

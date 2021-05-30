@@ -13,7 +13,7 @@ class AnalysisNet(nn.Module):
     Getting weight_graph and bias_graph from network.
 
     args:
-        input_size : test input_size: (3, 32, 32) \n
+        input_size : cifar10 is (3, 32, 32) 
     """
 
     def __init__(self, input_size=None):
@@ -21,24 +21,30 @@ class AnalysisNet(nn.Module):
         if not isinstance(input_size, torch.Size):
             input_size = torch.Size(input_size)
         self._input_size = input_size
-        self._size_Prod = None
-        self._size_One = None
+        self._size_prod = None
+        self._size_one = None
         self._print_log = False
         self._layer_num = -1
 
     @property
-    def size_Prod(self):
+    def size_prod(self):
+        """ 
+        if input size is (3,32,32), this is 3*32*32
+        """
         assert self._input_size is not None, 'Input_size is None'
-        if self._size_Prod is None:
-            self._size_Prod = self._get_size_prod(self._input_size)
-        return self._size_Prod
+        if self._size_prod is None:
+            self._size_prod = self._get_size_prod(self._input_size)
+        return self._size_prod
 
     @property
-    def size_One(self):
+    def size_one(self):
+        """ 
+        if input size is (3,32,32), this is (1,1,1)
+        """
         assert self._input_size is not None, 'Input_size is None'
-        if self._size_One is None:
-            self._size_One = self._get_size_to_one(self._input_size)
-        return self._size_One
+        if self._size_one is None:
+            self._size_one = self._get_size_to_one(self._input_size)
+        return self._size_one
 
     def _get_size_to_one(self, size):
         assert isinstance(size, torch.Size), 'Input must be a torch.Size'
@@ -66,8 +72,9 @@ class AnalysisNet(nn.Module):
 
     def analysis_module(self, x, module, pre_weight_graph=None, pre_bias_graph=None):
         """
-        A tool function for analyzing basic module.(conv2d, linear, ReLU,...) \n
-        'pre_weight_graph' and 'pre_bias_graph' is None when the layer is the first layer. \n
+        A tool function for analyzing basic module.(conv2d, linear, ReLU,...).
+        'pre_weight_graph' and 'pre_bias_graph' is None when the layer is the first layer.
+
         args:
             x : input data;
             module : network module;
@@ -165,7 +172,6 @@ class AnalysisNet(nn.Module):
 
     def _analysis_maxPool2d(self, x, module, pre_graph=None, pre_bias_graph=None):
         """
-        懒得改了...
         Analyzing MaxPool2d \n
         Don't support ceil_mode = True and dilation != 1.
         """
@@ -272,7 +278,7 @@ class AnalysisNet(nn.Module):
             graph = torch.matmul(hook_x, pre_graph_n).view(-1, out_feature, *self._input_size)
             bias_graph = torch.matmul(hook_x, pre_bias_graph_n).view(-1, out_feature, *self._input_size)
 
-        bias_graph += (bias.view(-1, *self.size_One) / self.size_Prod)
+        bias_graph += (bias.view(-1, *self.size_one) / self.size_prod)
 
         return output, graph, bias_graph
 
@@ -293,8 +299,8 @@ class AnalysisNet(nn.Module):
         # ((*x.shape)), (*input_size))
         graph = torch.zeros(graph_size, device=self._device)
         bias_graph = torch.zeros(graph_size, device=self._device)
-        graph += x_relu_hot.view(*x_relu_hot.size(), *self.size_One)
-        bias_graph += x_relu_hot.view(*x_relu_hot.size(), *self.size_One)
+        graph += x_relu_hot.view(*x_relu_hot.size(), *self.size_one)
+        bias_graph += x_relu_hot.view(*x_relu_hot.size(), *self.size_one)
         if pre_graph is not None:
             graph *= pre_graph
             bias_graph *= pre_bias_graph
@@ -331,11 +337,11 @@ class AnalysisNet(nn.Module):
         graph = torch.zeros(graph_size, device=self._device)
         bias_graph = torch.zeros(graph_size, device=self._device)
 
-        real_weight = (weight / torch.sqrt(running_var + eps)).view(-1, 1, 1, *self._size_One)
+        real_weight = (weight / torch.sqrt(running_var + eps)).view(-1, 1, 1, *self.size_one)
         real_bias = bias - ((weight * running_mean) / torch.sqrt(running_var + eps))
 
         # TODO: Modify this way to get the bias
-        real_bias = real_bias.view(-1, 1, 1, *self._size_One) / self.size_Prod
+        real_bias = real_bias.view(-1, 1, 1, *self.size_one) / self.size_prod
 
         graph = pre_graph * real_weight
         bias_graph = pre_bias_graph * real_weight + real_bias
@@ -372,11 +378,11 @@ class AnalysisNet(nn.Module):
         graph = torch.zeros(graph_size, device=self._device)
         bias_graph = torch.zeros(graph_size, device=self._device)
 
-        real_weight = (weight / torch.sqrt(running_var + eps)).view(-1, *self._size_One)
+        real_weight = (weight / torch.sqrt(running_var + eps)).view(-1, *self.size_one)
         real_bias = bias - ((weight * running_mean) / torch.sqrt(running_var + eps))
 
         # TODO: Modify this way to get the bias
-        real_bias = real_bias.view(-1, *self._size_One) / self.size_Prod
+        real_bias = real_bias.view(-1, *self.size_one) / self.size_prod
 
         graph = pre_graph * real_weight
         bias_graph = pre_bias_graph * real_weight + real_bias
@@ -384,9 +390,7 @@ class AnalysisNet(nn.Module):
         return output, graph, bias_graph
 
     def _analysis_Sequential(self, x, module, pre_weight_graph=None, pre_bias_graph=None):
-        weight_graph = pre_weight_graph
-        bias_graph = pre_bias_graph
-        output = x
+        weight_graph, bias_graph, output = pre_weight_graph, pre_bias_graph, x
         for child_modules in module._modules.values():
             if isinstance(child_modules, AnalysisNet):
                 output, weight_graph, bias_graph = child_modules.forward_graph(output, weight_graph, bias_graph)
@@ -414,7 +418,7 @@ class AnalysisNet(nn.Module):
         bias_graph = torch.zeros(graph_size, device=self._device)
         # Conv2d opt
         # ===============================================================
-        # slower!!
+        # slower!! for first layer
         # create hook of x
         # hook_x :(n, c_out, c_in, h_in, w_in)
         if pre_graph is None:
@@ -426,17 +430,7 @@ class AnalysisNet(nn.Module):
             for h in range(h_n):
                 for w in range(w_n):
                     hook_x[:, :, :, h*stride[0]:h*stride[0]+kernel_size[0], w*stride[1]: w*stride[1]+kernel_size[1]] += kernel_weight
-                    if pre_graph is None:
-                        graph[:, :, h, w] = hook_x[:, :, :, padding[0]:hook_x.shape[3]-padding[0], padding[1]:hook_x.shape[4]-padding[1]]
-                    else:
-                        hook_x_n = hook_x[:, :, :, padding[0]:hook_x.shape[3]-padding[0], padding[1]:hook_x.shape[4]-padding[1]].detach().clone()
-                        hook_x_n = hook_x_n.view(hook_x.size(0), out_channels, -1)
-                        # (n, -1 , sum(input_size))
-                        pre_graph_n = pre_graph.view(pre_graph.size(0), hook_x_n.size(2), -1)
-                        pre_bias_graph_n = pre_bias_graph.view(pre_bias_graph.size(0), hook_x_n.size(2), -1)
-                        # (n, out_channels, *input_size)
-                        graph[:, :, h, w] = torch.matmul(hook_x_n, pre_graph_n).view(-1, out_channels, *self._input_size)
-                        bias_graph[:, :, h, w] = torch.matmul(hook_x_n, pre_bias_graph_n).view(-1, out_channels, *self._input_size)
+                    graph[:, :, h, w] = hook_x[:, :, :, padding[0]:hook_x.shape[3]-padding[0], padding[1]:hook_x.shape[4]-padding[1]]
                     hook_x.zero_()
         # ===============================================================
         # speed 1
@@ -463,8 +457,8 @@ class AnalysisNet(nn.Module):
                 # hook_kernel_weight_hook : (w_out, c_out, (c_in, h_pos-, w_in)) -> ((c_in, h_pos-, w_in), w_out, c_out)
                 hook_kernel_weight_hook = hook_kernel_weight[:, :, :, pos_kernal:pos_end_kernal, :].reshape(w_n * out_channels, -1).permute(1, 0)
                 # pre_graph_hook : (n, (c_in, h_pos-, w_in), *(input_size)) -> (n, *(input_size), (c_in, h_pos-, w_in))
-                pre_graph_hook = pre_graph[:, :, pos_h:pos_end, :, :, :, :].reshape(x.size(0), -1, self.size_Prod).permute(0, 2, 1)
-                pre_bias_graph_hook = pre_bias_graph[:, :, pos_h:pos_end, :, :, :, :].reshape(x.size(0), -1, self.size_Prod).permute(0, 2, 1)
+                pre_graph_hook = pre_graph[:, :, pos_h:pos_end, :, :, :, :].reshape(x.size(0), -1, self.size_prod).permute(0, 2, 1)
+                pre_bias_graph_hook = pre_bias_graph[:, :, pos_h:pos_end, :, :, :, :].reshape(x.size(0), -1, self.size_prod).permute(0, 2, 1)
 
                 # graph_hook : (n, c_out, w_out, *(input_size))
                 graph[:, :, h] = torch.matmul(pre_graph_hook, hook_kernel_weight_hook).reshape(x.size(0), *self._input_size, w_n, out_channels).permute(0, 5, 4, 1, 2, 3)
@@ -474,5 +468,5 @@ class AnalysisNet(nn.Module):
         # rm w and h loop
         # ===============================================================
         # bias 采用平均值
-        bias_graph += (bias.view(-1, 1, 1, *self.size_One) / self.size_Prod)
+        bias_graph += (bias.view(-1, 1, 1, *self.size_one) / self.size_prod)
         return graph, bias_graph

@@ -19,10 +19,10 @@ class TestNet(analysisNet.AnalysisNet):
     def __init__(self, input_size=(2,)):
         super(TestNet, self).__init__(input_size)
         self.relu = nn.ReLU()
-        self.fc1 = nn.Linear(2, 32, bias=True)
-        self.fc2 = nn.Linear(32, 32, bias=True)
-        self.fc3 = nn.Linear(32, 32, bias=True)
-        self.fc4 = nn.Linear(32, 3, bias=True)
+        self.fc1 = nn.Linear(input_size[0], 16, bias=True)
+        self.fc2 = nn.Linear(16, 16, bias=True)
+        self.fc3 = nn.Linear(16, 16, bias=True)
+        self.fc4 = nn.Linear(16, 3, bias=True)
 
     def forward(self, x):
         x = self.fc1(x)
@@ -58,8 +58,7 @@ class TestNet(analysisNet.AnalysisNet):
 net = TestNet((2,)).to(device)
 
 au = areaUtils.AnalysisReLUNetUtils(device=device)
-num = au.getAreaNum(net, 1, countLayers=3, saveArea=True)
-print(num)
+num = au.getAreaNum(net, 1, countLayers=2, saveArea=True)
 funcs, areas, points = au.getAreaData()
 
 ax = plt.subplot()
@@ -67,14 +66,12 @@ for i in range(num):
     #  to <= 0
     func, area, point = funcs[i], areas[i], points[i]
     # print(f"Func: {func}, area: {area}, point: {point}")
-    func = (1 - area * 2).view(-1, 1) * func
+    func = - area.view(-1, 1) * func
     func = func.numpy()
     A, B = func[:, :-1], -func[:, -1]
     p = pc.Polytope(A, B)
-    p.plot(ax, color=np.random.uniform(0.0, 1., 3), alpha=1, linestyle='-', linewidth=0.2, edgecolor='w')
+    p.plot(ax, color=np.random.uniform(0.0, 0.5, 3), alpha=1., linestyle='-', linewidth=0.2, edgecolor='w')
 
 plt.xlim(-1, 1)
 plt.ylim(-1, 1)
 plt.show()
-
-# [60,60,60,60] 21min
