@@ -19,10 +19,10 @@ class TestNet(analysisNet.AnalysisNet):
     def __init__(self, input_size=(2,)):
         super(TestNet, self).__init__(input_size)
         self.relu = nn.ReLU()
-        self.fc1 = nn.Linear(input_size[0], 16, bias=True)
-        self.fc2 = nn.Linear(16, 16, bias=True)
+        self.fc1 = nn.Linear(input_size[0], 32, bias=True)
+        self.fc2 = nn.Linear(32, 32, bias=True)
         self.fc3 = nn.Linear(16, 16, bias=True)
-        self.fc4 = nn.Linear(16, 3, bias=True)
+        self.fc4 = nn.Linear(32, 3, bias=True)
 
     def forward(self, x):
         x = self.fc1(x)
@@ -31,8 +31,8 @@ class TestNet(analysisNet.AnalysisNet):
         x = self.fc2(x)
         x = self.relu(x)
 
-        x = self.fc3(x)
-        x = self.relu(x)
+        # x = self.fc3(x)
+        # x = self.relu(x)
 
         x = self.fc4(x)
 
@@ -44,11 +44,11 @@ class TestNet(analysisNet.AnalysisNet):
             return out, weight_graph, bias_graph
         out, weight_graph, bias_graph = self.analysis_module(out, self.relu, weight_graph, bias_graph)
         out, weight_graph, bias_graph = self.analysis_module(out, self.fc2, weight_graph, bias_graph)
+        # if Layer == 1:
+        #     return out, weight_graph, bias_graph
+        # out, weight_graph, bias_graph = self.analysis_module(out, self.relu, weight_graph, bias_graph)
+        # out, weight_graph, bias_graph = self.analysis_module(out, self.fc3, weight_graph, bias_graph)
         if Layer == 1:
-            return out, weight_graph, bias_graph
-        out, weight_graph, bias_graph = self.analysis_module(out, self.relu, weight_graph, bias_graph)
-        out, weight_graph, bias_graph = self.analysis_module(out, self.fc3, weight_graph, bias_graph)
-        if Layer == 2:
             return out, weight_graph, bias_graph
         out, weight_graph, bias_graph = self.analysis_module(out, self.relu, weight_graph, bias_graph)
         out, weight_graph, bias_graph = self.analysis_module(out, self.fc4, weight_graph, bias_graph)
@@ -58,7 +58,7 @@ class TestNet(analysisNet.AnalysisNet):
 net = TestNet((2,)).to(device)
 
 au = areaUtils.AnalysisReLUNetUtils(device=device)
-num = au.getAreaNum(net, 1, countLayers=2, saveArea=True)
+num = au.getAreaNum(net, 1, countLayers=1, saveArea=True)
 funcs, areas, points = au.getAreaData()
 
 ax = plt.subplot()

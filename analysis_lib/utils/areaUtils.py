@@ -40,8 +40,7 @@ class WapperArea(object):
 
     def registAreas(self, areaSigns: torch.Tensor):
         for area in areaSigns:
-            if not self.checkArea(area):
-                self.area.append(area)
+            self.registArea(area)
 
     def updateIndex(self, areaSign):
         if self.checkArea(areaSign):
