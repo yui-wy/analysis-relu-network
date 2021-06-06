@@ -12,12 +12,13 @@ from torch.utils.data import dataloader
 from analysis_lib.utils import areaUtils
 from nets.TestNet import TestTNetLinear
 
-DATASET = "toy"
-N_NUM = [64, 64, 64]
-N_SAMPLE = 2000
-TAG = f"Linear-64x3"
+SEED = 1658123
+DATASET = f"random{SEED}"
+N_NUM = [16, 32, 64]
+TAG = f"Linear-{N_NUM}".replace(' ', '')
+N_SAMPLE = 600
 GPU_ID = 0
-MAX_EPOCH = 100
+MAX_EPOCH = 1000
 BATCH_SIZE = 32
 LR = 1e-3
 ROOT_DIR = os.path.abspath("./")
@@ -32,11 +33,11 @@ if not os.path.exists(LAB_DIR):
     os.makedirs(LAB_DIR)
 
 device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
-COLOR = ('royalblue', 'limegreen', 'darkorchid', 'aqua', 'tomato', 'violet')
+COLOR = ('royalblue', 'limegreen', 'darkorchid', 'aqua', 'tomato', 'violet', 'teal')
 
-torch.manual_seed(5)
-torch.cuda.manual_seed_all(5)
-np.random.seed(5)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed_all(SEED)
+np.random.seed(SEED)
 
 
 class default_plt:
@@ -73,8 +74,8 @@ class default_plt:
         plt.close()
 
 
-def default(savePath, xlabel='', ylabel='', mode='png', isGray=False):
-    return default_plt(savePath, xlabel, ylabel, mode, isGray)
+def default(savePath, xlabel='', ylabel='', mode='png', isGray=False, isLegend=True):
+    return default_plt(savePath, xlabel, ylabel, mode, isGray, isLegend)
 
 
 class ToyDateBase(dataloader.Dataset):
@@ -128,7 +129,7 @@ def getDataSet(setName, n_sample, noise, random_state, data_path):
     if setName == "toy":
         x, y = make_moons(n_sample, noise=noise, random_state=random_state)
         dataset = ToyDateBase(x, y)
-    if setName == "random" or setName == "random1":
+    if setName[:6] == "random":
         x = np.random.uniform(-1, 1, (n_sample, 2))
         y = np.sign(np.random.uniform(-1, 1, [n_sample, ]))
         y = (np.abs(y) + y) / 2
@@ -182,8 +183,9 @@ def lab():
     net.eval()
     au = areaUtils.AnalysisReLUNetUtils(device=device)
     # epoch = [0, 1, 5, 10, 30, 50, 80, 100, 200, 300, 400, 500, 800, 1000]
-    # epoch = [0, 20, 50, 80, 100, 200, 500, 800 ,1000]
-    epoch = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
+    epoch = [0, 20, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
+    # epoch = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
+    # epoch = [800]
     modelList = os.listdir(MODEL_DIR)
     with torch.no_grad():
         for modelName in modelList:
@@ -257,6 +259,9 @@ def lab2():
         if tag == "All":
             continue
         labDict[tag] = {}
+        datasetPath = os.path.join(DatasetDir, tag, 'dataset.pkl')
+        dataset = torch.load(datasetPath)
+        drawDataSet(dataset, os.path.join(DatasetDir, tag))
         labDir = os.path.join(DatasetDir, tag, 'lab')
         for epochFold in os.listdir(labDir):
             epoch = float(epochFold[4:])
@@ -327,7 +332,15 @@ def drawEpochAccPlot(labDict: Dict, saveDir):
             i += 1
 
 
+def drawDataSet(dataset, saveDir):
+    savePath = os.path.join(saveDir, "distribution.png")
+    x, y = dataset['x'], dataset['y']
+    with default(savePath, 'x1', 'x2', isLegend=False) as ax:
+        ax.scatter(x[y == 0, 0], x[y == 0, 1], color=COLOR[0])
+        ax.scatter(x[y == 1, 0], x[y == 1, 1], color=COLOR[1])
+
+
 if __name__ == "__main__":
-    # train()
-    # lab()
-    lab2()
+    train()
+    lab()
+    # lab2()
