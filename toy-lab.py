@@ -12,13 +12,14 @@ from torch.utils.data import dataloader
 from analysis_lib.utils import areaUtils
 from nets.TestNet import TestTNetLinear
 
-SEED = 1658123
-DATASET = f"random{SEED}"
-N_NUM = [16, 32, 64]
+SEED = 5
+# DATASET = f"random{SEED}"
+DATASET = 'toy'
+N_NUM = [64, 64, 64]
 TAG = f"Linear-{N_NUM}".replace(' ', '')
-N_SAMPLE = 600
+N_SAMPLE = 2000
+MAX_EPOCH = 100
 GPU_ID = 0
-MAX_EPOCH = 1000
 BATCH_SIZE = 32
 LR = 1e-3
 ROOT_DIR = os.path.abspath("./")
@@ -81,10 +82,16 @@ def default(savePath, xlabel='', ylabel='', mode='png', isGray=False, isLegend=T
 class ToyDateBase(dataloader.Dataset):
     def __init__(self, x, y, isNorm=True) -> None:
         super().__init__()
-        self.x = (x - np.min(x)) / (np.max(x) - np.min(x))
         if isNorm:
-            self.x = (self.x - x.mean(0, keepdims=True)) / ((x.std(0, keepdims=True) + 1e-16) * 2)
+            self.x = (x - np.min(x)) / (np.max(x) - np.min(x))
+            self.x = (self.x - self.x.mean(0, keepdims=True)) / ((self.x.std(0, keepdims=True) + 1e-16))
+            self.x /= np.max(self.x)
         self.y = y
+        # x1, x2 = self.x[y == 0], self.x[y == 1]
+
+        # plt.scatter(x1[:, 0], x1[:, 1], color="r")
+        # plt.scatter(x2[:, 0], x2[:, 1], color="b")
+        # plt.show()
 
     def __getitem__(self, index):
         x, target = torch.from_numpy(self.x[index]), self.y[index]
@@ -121,22 +128,30 @@ def getRegion(net, name, logPath, au, countLayers):
 
 
 def getDataSet(setName, n_sample, noise, random_state, data_path):
+    isNorm = False
     savePath = os.path.join(data_path, 'dataset.pkl')
     if os.path.exists(savePath):
         dataDict = torch.load(savePath)
         x, y = dataDict['x'], dataDict['y']
-        return ToyDateBase(x, y, False)
+        try:
+            isNorm = dataDict['isNorm']
+        except:
+            pass
+        return ToyDateBase(x, y, isNorm)
     if setName == "toy":
         x, y = make_moons(n_sample, noise=noise, random_state=random_state)
-        dataset = ToyDateBase(x, y)
+        isNorm = True
+        dataset = ToyDateBase(x, y, isNorm)
     if setName[:6] == "random":
         x = np.random.uniform(-1, 1, (n_sample, 2))
         y = np.sign(np.random.uniform(-1, 1, [n_sample, ]))
         y = (np.abs(y) + y) / 2
-        dataset = ToyDateBase(x, y, False)
+        isNorm = False
+        dataset = ToyDateBase(x, y, isNorm)
     saveDict = {
         'x': x,
-        'y': y
+        'y': y,
+        'isNorm': isNorm
     }
     torch.save(saveDict, savePath)
     return dataset
@@ -183,9 +198,8 @@ def lab():
     net.eval()
     au = areaUtils.AnalysisReLUNetUtils(device=device)
     # epoch = [0, 1, 5, 10, 30, 50, 80, 100, 200, 300, 400, 500, 800, 1000]
-    epoch = [0, 20, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
-    # epoch = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
-    # epoch = [800]
+    # epoch = [0, 20, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
+    epoch = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
     modelList = os.listdir(MODEL_DIR)
     with torch.no_grad():
         for modelName in modelList:

@@ -249,6 +249,7 @@ class AnalysisReLUNetUtils(object):
         return areaNum
 
     def _getAreaFromPoint(self, points: torch.Tensor, funcList: torch.Tensor):
+        # TODO: 这里通过神经网络应该会更好一点?
         a, b = funcList[:, :-1].double(), funcList[:, -1].double()
         area = torch.sign(torch.matmul(points, a.T) + b)
         area = torch.where(area == 0, 1., area).type(torch.int8)
@@ -287,7 +288,7 @@ class AnalysisReLUNetUtils(object):
 
     def getAreaNum(self, net: AnalysisNet, bound: float = 1.0, countLayers: int = -1, pFuncList: torch.Tensor = None, pArea: torch.Tensor = None, saveArea: bool = False):
         """
-        TODO: 目前只支持方形的输入空间画图，需要修改。
+        目前只支持方形的输入空间画图，需要修改。
         Area:
             *  1: aX+b >= 0;
             * -1: aX+b < 0;
