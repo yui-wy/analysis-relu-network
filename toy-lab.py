@@ -82,8 +82,9 @@ def default(savePath, xlabel='', ylabel='', mode='png', isGray=False, isLegend=T
 class ToyDateBase(dataloader.Dataset):
     def __init__(self, x, y, isNorm=True) -> None:
         super().__init__()
+        self.x = x
         if isNorm:
-            self.x = (x - np.min(x)) / (np.max(x) - np.min(x))
+            self.x = (self.x - np.min(self.x)) / (np.max(self.x) - np.min(self.x))
             self.x = (self.x - self.x.mean(0, keepdims=True)) / ((self.x.std(0, keepdims=True) + 1e-16))
             self.x /= np.max(self.x)
         self.y = y
