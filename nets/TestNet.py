@@ -1,43 +1,32 @@
-import torch
 from analysis_lib import analysisNet
 import torch.nn as nn
 
 
 class TestTNetLinear(analysisNet.AnalysisNet):
-    def __init__(self, input_size=(2,), nNum=32, n_classes=2):
+    def __init__(self, input_size=(2,), nNum: tuple = [32, 32, 32], n_classes=2):
         super(TestTNetLinear, self).__init__(input_size)
+        self.numLayers = len(nNum)
+        self.add_module("0", nn.Linear(input_size[0], nNum[0], bias=True))
         self.relu = nn.ReLU()
-        self.fc1 = nn.Linear(input_size[0], nNum[0], bias=True)
-        self.fc2 = nn.Linear(nNum[0], nNum[1], bias=True)
-        self.fc3 = nn.Linear(nNum[1], nNum[2], bias=True)
-        self.fc4 = nn.Linear(nNum[2], n_classes, bias=True)
+        for i in range(self.numLayers-1):
+            fc = nn.Linear(nNum[i], nNum[i+1], bias=True)
+            self.add_module(f"{i+1}", fc)
+        self.add_module(f"{self.numLayers}", nn.Linear(nNum[-1], n_classes, bias=True))
 
     def forward(self, x):
-        x = self.fc1(x)
-        x = self.relu(x)
-
-        x = self.fc2(x)
-        x = self.relu(x)
-
-        x = self.fc3(x)
-        x = self.relu(x)
-        x = self.fc4(x)
-
+        for i in range(self.numLayers):
+            x = self._modules[f'{i}'](x)
+            x = self.relu(x)
+        x = self._modules[f"{self.numLayers}"](x)
         return x
 
-    def forward_graph_Layer(self, x, Layer=-1, pre_weight_graph=None, pre_bias_graph=None):
-        out, weight_graph, bias_graph = self.analysis_module(x, self.fc1, pre_weight_graph, pre_bias_graph)
-        if Layer == 0:
-            return out, weight_graph, bias_graph
-        out, weight_graph, bias_graph = self.analysis_module(out, self.relu, weight_graph, bias_graph)
-        out, weight_graph, bias_graph = self.analysis_module(out, self.fc2, weight_graph, bias_graph)
-        if Layer == 1:
-            return out, weight_graph, bias_graph
-        out, weight_graph, bias_graph = self.analysis_module(out, self.relu, weight_graph, bias_graph)
-        out, weight_graph, bias_graph = self.analysis_module(out, self.fc3, weight_graph, bias_graph)
-        if Layer == 2:
-            return out, weight_graph, bias_graph
-        out, weight_graph, bias_graph = self.analysis_module(out, self.relu, weight_graph, bias_graph)
-        out, weight_graph, bias_graph = self.analysis_module(out, self.fc4, weight_graph, bias_graph)
-
+    def forward_graph_Layer(self, x, layer=0, pre_weight_graph=None, pre_bias_graph=None):
+        assert layer >= 0, "'layer' must be greater than 0."
+        out, weight_graph, bias_graph = x, pre_weight_graph, pre_bias_graph
+        for i in range(self.numLayers):
+            out, weight_graph, bias_graph = self.analysis_module(out, self._modules[f'{i}'], weight_graph, bias_graph)
+            if layer == i:
+                return out, weight_graph, bias_graph
+            out, weight_graph, bias_graph = self.analysis_module(out, self.relu, weight_graph, bias_graph)
+        out, weight_graph, bias_graph = self.analysis_module(out, self._modules[f"{self.numLayers}"], weight_graph, bias_graph)
         return out, weight_graph, bias_graph

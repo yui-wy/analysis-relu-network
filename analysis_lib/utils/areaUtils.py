@@ -83,7 +83,7 @@ class AnalysisReLUNetUtils(object):
         point = torch.from_numpy(point).float()
         point = point.to(self.device).unsqueeze(dim=0)
         with torch.no_grad():
-            _, weight_graph, bias_graph = self.net.forward_graph_Layer(point, Layer=layerNum)
+            _, weight_graph, bias_graph = self.net.forward_graph_Layer(point, layer=layerNum)
             # (1, *output.size(), *input.size())
             weight_graph, bias_graph = weight_graph[0], bias_graph[0]
             # (output.num, input.num)

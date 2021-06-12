@@ -62,7 +62,7 @@ class AnalysisNet(nn.Module):
         """
         raise NotImplementedError
 
-    def forward_graph_Layer(self, x, Layer=-1, pre_weight_graph=None, pre_bias_graph=None):
+    def forward_graph_Layer(self, x, layer=0, pre_weight_graph=None, pre_bias_graph=None):
         """
             >>> net.eval()
             >>> with torch.no_grad():
