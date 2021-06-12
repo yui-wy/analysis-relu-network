@@ -16,13 +16,11 @@ GPU_ID = 0
 SEED = 5
 # DATASET = f"random{SEED}"
 DATASET = 'toy'
-N_NUM = [5, 5, 5, 5]
+N_NUM = [32, 32, 32]
 N_SAMPLE = 1000
 TAG = f"Linear-{N_NUM}".replace(' ', '')
 
 MAX_EPOCH = 100
-# SAVE_EPOCH = [0, 1, 5, 10, 30, 50, 80, 100, 200, 300, 400, 500, 800, 1000]
-# SAVE_EPOCH = [0, 20, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
 SAVE_EPOCH = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
 
 BATCH_SIZE = 32
@@ -86,25 +84,32 @@ def val_net(net, val_dataloader):
 def getDataSet(setName, n_sample, noise, random_state, data_path):
     isNorm = False
     savePath = os.path.join(data_path, 'dataset.pkl')
+    n_classes = None
     if os.path.exists(savePath):
         dataDict = torch.load(savePath)
-        x, y = dataDict['x'], dataDict['y']
+        x, y, n_classes = dataDict['x'], dataDict['y'], dataDict['n_classes']
         try:
             isNorm = dataDict['isNorm']
         except:
             pass
-        return ToyDateBase(x, y, isNorm)
+        return ToyDateBase(x, y, isNorm), n_classes
     if setName == "toy":
         x, y = make_moons(n_sample, noise=noise, random_state=random_state)
         isNorm = True
+        n_classes = 2
     if setName[:6] == "random":
         x = np.random.uniform(-1, 1, (n_sample, 2))
         y = np.sign(np.random.uniform(-1, 1, [n_sample, ]))
         y = (np.abs(y) + y) / 2
         isNorm = False
+        n_classes = 2
+    if setName[:5] == "noise":
+        # TODO: noise生成
+        isNorm = False
+        n_classes = 10
     dataset = ToyDateBase(x, y, isNorm)
-    torch.save({'x': x, 'y': y, 'isNorm': isNorm}, savePath)
-    return dataset
+    torch.save({'x': x, 'y': y, 'isNorm': isNorm, 'n_classes': n_classes}, savePath)
+    return dataset, n_classes
 
 
 def train():
@@ -144,9 +149,9 @@ def train():
 
 
 def lab():
-    dataset = getDataSet(DATASET, N_SAMPLE, 0.2, 5, SAVE_DIR)
+    dataset, n_classes = getDataSet(DATASET, N_SAMPLE, 0.2, 5, SAVE_DIR)
     val_dataloader = dataloader.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
-    net = TestTNetLinear((2,), N_NUM)
+    net = TestTNetLinear(n_classes, N_NUM)
     net.eval()
     au = areaUtils.AnalysisReLUNetUtils(device=device)
     modelList = os.listdir(MODEL_DIR)
