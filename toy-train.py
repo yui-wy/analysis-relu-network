@@ -113,11 +113,11 @@ def getDataSet(setName, n_sample, noise, random_state, data_path):
 
 
 def train():
-    dataset = getDataSet(DATASET, N_SAMPLE, 0.2, 5, SAVE_DIR)
-    totalStep = math.ceil(len(dataset) / BATCH_SIZE)
+    dataset, n_classes = getDataSet(DATASET, N_SAMPLE, 0.2, 5, SAVE_DIR)
     trainLoader = dataloader.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+    totalStep = math.ceil(len(dataset) / BATCH_SIZE)
 
-    net = TestTNetLinear((2,), N_NUM).to(device)
+    net = TestTNetLinear((2,), N_NUM, n_classes).to(device)
     optim = torch.optim.Adam(net.parameters(), lr=LR, weight_decay=1e-4, betas=[0.9, 0.999])
     ce = torch.nn.CrossEntropyLoss()
 
@@ -151,7 +151,7 @@ def train():
 def lab():
     dataset, n_classes = getDataSet(DATASET, N_SAMPLE, 0.2, 5, SAVE_DIR)
     val_dataloader = dataloader.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
-    net = TestTNetLinear(n_classes, N_NUM)
+    net = TestTNetLinear((2,), N_NUM, n_classes)
     net.eval()
     au = areaUtils.AnalysisReLUNetUtils(device=device)
     modelList = os.listdir(MODEL_DIR)
