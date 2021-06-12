@@ -16,7 +16,7 @@ GPU_ID = 0
 SEED = 5
 # DATASET = f"random{SEED}"
 DATASET = 'toy'
-N_NUM = [5, 5, 5,5]
+N_NUM = [5, 5, 5, 5]
 N_SAMPLE = 1000
 TAG = f"Linear-{N_NUM}".replace(' ', '')
 
@@ -83,13 +83,6 @@ def val_net(net, val_dataloader):
     return val_accuracy_sum
 
 
-def getRegion(net, name, logPath, au, countLayers):
-    num = au.getAreaNum(net, 1, countLayers=countLayers)
-    logPath.write(f"Key: {name}; RegionNum: {num}\n")
-    logPath.flush()
-    return num
-
-
 def getDataSet(setName, n_sample, noise, random_state, data_path):
     isNorm = False
     savePath = os.path.join(data_path, 'dataset.pkl')
@@ -104,19 +97,13 @@ def getDataSet(setName, n_sample, noise, random_state, data_path):
     if setName == "toy":
         x, y = make_moons(n_sample, noise=noise, random_state=random_state)
         isNorm = True
-        dataset = ToyDateBase(x, y, isNorm)
     if setName[:6] == "random":
         x = np.random.uniform(-1, 1, (n_sample, 2))
         y = np.sign(np.random.uniform(-1, 1, [n_sample, ]))
         y = (np.abs(y) + y) / 2
         isNorm = False
-        dataset = ToyDateBase(x, y, isNorm)
-    saveDict = {
-        'x': x,
-        'y': y,
-        'isNorm': isNorm
-    }
-    torch.save(saveDict, savePath)
+    dataset = ToyDateBase(x, y, isNorm)
+    torch.save({'x': x, 'y': y, 'isNorm': isNorm}, savePath)
     return dataset
 
 
@@ -178,7 +165,7 @@ def lab():
             net = net.to(device)
             acc = val_net(net, val_dataloader).cpu().numpy()
             print(f'Accuracy: {acc:.4f}')
-            regionNum = au.getAreaNum(net, 1, countLayers=2, saveArea=True)
+            regionNum = au.getAreaNum(net, 1, countLayers=net.reLUNum, saveArea=True)
             funcs, areas, points = au.getAreaData()
             # draw fig
             drawRegionImg(regionNum, funcs, areas, points, saveDir)

@@ -6,6 +6,7 @@ class TestTNetLinear(analysisNet.AnalysisNet):
     def __init__(self, input_size=(2,), nNum: tuple = [32, 32, 32], n_classes=2):
         super(TestTNetLinear, self).__init__(input_size)
         self.numLayers = len(nNum)
+        self.reLUNum = self.numLayers-1
         self.add_module("0", nn.Linear(input_size[0], nNum[0], bias=True))
         self.relu = nn.ReLU()
         for i in range(self.numLayers-1):
