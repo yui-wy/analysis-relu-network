@@ -11,8 +11,8 @@ from ..analysisNet import AnalysisNet
 class WapperArea(object):
     """
     Get the area(sign) of the funtion list.
-    *  1 : >= 0
-    * -1 : < 0
+    *  1 : f(x) >= 0
+    * -1 : f(x) < 0
     """
 
     def __init__(self):
@@ -57,18 +57,22 @@ class WapperArea(object):
 
 class AnalysisReLUNetUtils(object):
     """
-    args :
-        - device : GPU or CPU to get the graph;
-        - logger : print the information (Default: print in console)(logger.info(...));
+    AnalysisReLUNetUtils.
+
+    args:
+        device: torch.device
+            GPU or CPU to get the graph;
+        logger: def info(...)
+            print the information (Default: print in console)(logger.info(...)).
     """
 
     def __init__(self, device=torch.device('cpu'), logger=None):
         self.device = device
         if logger is None:
-            self.logger = logging.getLogger("AnalysisReLUNetUtils")
-            self.logger.setLevel(level=logging.INFO)  # 定义过滤级别
+            self.logger = logging.getLogger("AnalysisReLUNetUtils-Console")
+            self.logger.setLevel(level=logging.INFO)
             formatter = logging.Formatter('[%(asctime)s] - %(name)s : %(message)s')
-            console = logging.StreamHandler()  # 日志信息显示在终端terminal
+            console = logging.StreamHandler()
             console.setLevel(logging.INFO)
             console.setFormatter(formatter)
             self.logger.addHandler(console)
@@ -79,7 +83,6 @@ class AnalysisReLUNetUtils(object):
         """
         Get the list of the linear function before ReLU layer.
         """
-        self.net.eval()
         point = torch.from_numpy(point).float()
         point = point.to(self.device).unsqueeze(dim=0)
         with torch.no_grad():
@@ -249,7 +252,6 @@ class AnalysisReLUNetUtils(object):
         return areaNum
 
     def _getAreaFromPoint(self, points: torch.Tensor, funcList: torch.Tensor):
-        # TODO: 这里通过神经网络应该会更好一点?
         a, b = funcList[:, :-1].double(), funcList[:, -1].double()
         area = torch.sign(torch.matmul(points, a.T) + b)
         area = torch.where(area == 0, 1., area).type(torch.int8)
@@ -306,6 +308,7 @@ class AnalysisReLUNetUtils(object):
         assert bound > 0, "Please set the bound > 0."
         self.logger.info("Start Get region number...")
         self.net, self.countLayers, self.bound, self.saveArea = net.to(self.device), countLayers, bound, saveArea
+        self.net.eval()
         self.regist = self._updateAreaListRegist if saveArea else self._defaultRegist
         self.areaFuncs, self.areas, self.points = [], [], []
         self.initCon()

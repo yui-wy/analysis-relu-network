@@ -1,5 +1,5 @@
-from analysis_lib import analysisNet
 import torch.nn as nn
+from analysis_lib import analysisNet
 
 
 class TestTNetLinear(analysisNet.AnalysisNet):

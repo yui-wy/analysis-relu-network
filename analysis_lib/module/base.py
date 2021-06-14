@@ -3,7 +3,7 @@ import torch.nn as nn
 from analysis_lib.utils import timer
 
 
-class AnalysisNet(nn.Module):
+class BaseModule(nn.Module):
     """
     Getting weight_graph and bias_graph from network.
 
@@ -12,7 +12,7 @@ class AnalysisNet(nn.Module):
     """
 
     def __init__(self, input_size=None):
-        super(AnalysisNet, self).__init__()
+        super(BaseModule, self).__init__()
         if not isinstance(input_size, torch.Size):
             input_size = torch.Size(input_size)
         self._input_size = input_size
@@ -107,7 +107,7 @@ class AnalysisNet(nn.Module):
         elif isinstance(module, nn.Sequential):
             # Sequential unit
             output, weight_graph, bias_graph = self._analysis_Sequential(x, module, pre_weight_graph, pre_bias_graph)
-        elif isinstance(module, AnalysisNet):
+        elif isinstance(module, BaseModule):
             # AnalysisNet unit
             output, weight_graph, bias_graph = self._analysis_child_class(x, module, pre_weight_graph, pre_bias_graph)
         else:
@@ -387,7 +387,7 @@ class AnalysisNet(nn.Module):
     def _analysis_Sequential(self, x, module, pre_weight_graph=None, pre_bias_graph=None):
         weight_graph, bias_graph, output = pre_weight_graph, pre_bias_graph, x
         for child_modules in module._modules.values():
-            if isinstance(child_modules, AnalysisNet):
+            if isinstance(child_modules, BaseModule):
                 output, weight_graph, bias_graph = child_modules.forward_graph(output, weight_graph, bias_graph)
             else:
                 output, weight_graph, bias_graph = self.analysis_module(output, child_modules, weight_graph, bias_graph)
