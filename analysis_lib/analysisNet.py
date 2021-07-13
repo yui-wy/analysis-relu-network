@@ -1,12 +1,5 @@
-import os
-import gc
-from collections import OrderedDict
-
-import numpy as np
 import torch
-from torch._C import device
 import torch.nn as nn
-from analysis_lib import timer
 
 
 class AnalysisNet(nn.Module):
@@ -98,9 +91,9 @@ class AnalysisNet(nn.Module):
         elif isinstance(module, nn.AvgPool2d):
             # AvgPool2d unit
             output, weight_graph, bias_graph = self._analysis_avgPool2d(x, module, pre_weight_graph, pre_bias_graph)
-        elif isinstance(module, nn.MaxPool2d):
-            # MaxPool2d unit
-            output, weight_graph, bias_graph = self._analysis_maxPool2d(x, module, pre_weight_graph, pre_bias_graph)
+        # elif isinstance(module, nn.MaxPool2d):
+        #     # MaxPool2d unit
+        #     output, weight_graph, bias_graph = self._analysis_maxPool2d(x, module, pre_weight_graph, pre_bias_graph)
         elif isinstance(module, nn.BatchNorm2d):
             # BatchNorm2d unit
             output, weight_graph, bias_graph = self._analysis_BatchNorm2d(x, module, pre_weight_graph, pre_bias_graph)
