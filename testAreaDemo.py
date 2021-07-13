@@ -1,4 +1,3 @@
-import time
 import numpy as np
 import polytope as pc
 import torch
@@ -21,7 +20,7 @@ class TestNet(analysisNet.AnalysisNet):
         self.relu = nn.ReLU()
         self.fc1 = nn.Linear(input_size[0], 32, bias=True)
         self.fc2 = nn.Linear(32, 32, bias=True)
-        self.fc3 = nn.Linear(16, 16, bias=True)
+        # self.fc3 = nn.Linear(16, 16, bias=True)
         self.fc4 = nn.Linear(32, 3, bias=True)
 
     def forward(self, x):
@@ -38,9 +37,9 @@ class TestNet(analysisNet.AnalysisNet):
 
         return x
 
-    def forward_graph_Layer(self, x, Layer=-1, pre_weight_graph=None, pre_bias_graph=None):
+    def forward_graph_Layer(self, x, layer=-1, pre_weight_graph=None, pre_bias_graph=None):
         out, weight_graph, bias_graph = self.analysis_module(x, self.fc1, pre_weight_graph, pre_bias_graph)
-        if Layer == 0:
+        if layer == 0:
             return out, weight_graph, bias_graph
         out, weight_graph, bias_graph = self.analysis_module(out, self.relu, weight_graph, bias_graph)
         out, weight_graph, bias_graph = self.analysis_module(out, self.fc2, weight_graph, bias_graph)
@@ -48,7 +47,7 @@ class TestNet(analysisNet.AnalysisNet):
         #     return out, weight_graph, bias_graph
         # out, weight_graph, bias_graph = self.analysis_module(out, self.relu, weight_graph, bias_graph)
         # out, weight_graph, bias_graph = self.analysis_module(out, self.fc3, weight_graph, bias_graph)
-        if Layer == 1:
+        if layer == 1:
             return out, weight_graph, bias_graph
         out, weight_graph, bias_graph = self.analysis_module(out, self.relu, weight_graph, bias_graph)
         out, weight_graph, bias_graph = self.analysis_module(out, self.fc4, weight_graph, bias_graph)
@@ -70,7 +69,7 @@ for i in range(num):
     func = func.numpy()
     A, B = func[:, :-1], -func[:, -1]
     p = pc.Polytope(A, B)
-    p.plot(ax, color=np.random.uniform(0.0, 0.5, 3), alpha=1., linestyle='-', linewidth=0.2, edgecolor='w')
+    p.plot(ax, color=np.random.uniform(0.0, 0.99, 3), alpha=1., linestyle='-', linewidth=0.2, edgecolor='w')
 
 plt.xlim(-1, 1)
 plt.ylim(-1, 1)

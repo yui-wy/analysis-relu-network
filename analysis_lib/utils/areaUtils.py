@@ -64,6 +64,7 @@ class AnalysisReLUNetUtils(object):
 
     def __init__(self, device=torch.device('cpu'), logger=None):
         self.device = device
+        self.one = torch.ones(1, device=self.device).double()
         if logger is None:
             self.logger = logging.getLogger("AnalysisReLUNetUtils")
             self.logger.setLevel(level=logging.INFO)  # 定义过滤级别
@@ -88,8 +89,6 @@ class AnalysisReLUNetUtils(object):
             weight_graph, bias_graph = weight_graph[0], bias_graph[0]
             # (output.num, input.num)
             weight_graph = weight_graph.reshape(-1, self.net.size_prod)
-            # self.logger.info(weight_graph.size())
-            bias_graph = bias_graph.sum(dim=list(range(len(bias_graph.shape)))[-len(self.net._input_size):])
             # (output.num, 1)
             bias_graph = bias_graph.reshape(-1, 1)
             # self.logger.info(bias_graph.size())
@@ -149,7 +148,7 @@ class AnalysisReLUNetUtils(object):
         # ==================================================
         # Find the least linear functions to express a region.
         cons = [{'type': 'ineq',
-                'fun': conFunc1(conFuncs[i]),
+                 'fun': conFunc1(conFuncs[i]),
                  'jac': conJac(conFuncs[i]),
                  } for i in range(conFuncs.shape[0])]
         cons.extend(self.con)
@@ -249,10 +248,9 @@ class AnalysisReLUNetUtils(object):
         return areaNum
 
     def _getAreaFromPoint(self, points: torch.Tensor, funcList: torch.Tensor):
-        # TODO: 这里通过神经网络应该会更好一点?
         a, b = funcList[:, :-1].double(), funcList[:, -1].double()
         area = torch.sign(torch.matmul(points, a.T) + b)
-        area = torch.where(area == 0, 1., area).type(torch.int8)
+        area = torch.where(area == 0, self.one, area).type(torch.int8)
         return area
 
     def _wapperGetLayerAreaNum(self, point, funcList, area, layerNum):
