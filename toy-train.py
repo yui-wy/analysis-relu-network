@@ -10,7 +10,7 @@ from sklearn.datasets import *
 from torch.utils.data import dataloader
 
 from analysis_lib.utils import areaUtils
-from nets.TestNet import TestTNetLinear
+from analysis_lib.models.testnet import TestTNetLinear
 
 GPU_ID = 0
 SEED = 5
@@ -148,7 +148,7 @@ def train():
             torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_{epoch+1}.pth'))
 
 
-def lab():
+def getRegion():
     dataset, n_classes = getDataSet(DATASET, N_SAMPLE, 0.2, 5, SAVE_DIR)
     val_dataloader = dataloader.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
     net = TestTNetLinear((2,), N_NUM, n_classes)
@@ -170,7 +170,7 @@ def lab():
             net = net.to(device)
             acc = val_net(net, val_dataloader).cpu().numpy()
             print(f'Accuracy: {acc:.4f}')
-            regionNum = au.getAreaNum(net, 1, countLayers=net.reLUNum, saveArea=True)
+            regionNum = au.getAreaNum(net, 1., countLayers=net.reLUNum, saveArea=True)
             funcs, areas, points = au.getAreaData()
             # draw fig
             drawRegionImg(regionNum, funcs, areas, points, saveDir)
@@ -248,4 +248,4 @@ def getLogger(saveDir, loggerName):
 
 if __name__ == "__main__":
     train()
-    lab()
+    getRegion()

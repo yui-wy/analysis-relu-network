@@ -92,7 +92,6 @@ class AnalysisReLUNetUtils(object):
             # (output.num, input.num)
             weight_graph = weight_graph.reshape(-1, self.net.size_prod)
             # self.logger.info(weight_graph.size())
-            bias_graph = bias_graph.sum(dim=list(range(len(bias_graph.shape)))[-len(self.net._input_size):])
             # (output.num, 1)
             bias_graph = bias_graph.reshape(-1, 1)
             # self.logger.info(bias_graph.size())
@@ -152,7 +151,7 @@ class AnalysisReLUNetUtils(object):
         # ==================================================
         # Find the least linear functions to express a region.
         cons = [{'type': 'ineq',
-                'fun': conFunc1(conFuncs[i]),
+                 'fun': conFunc1(conFuncs[i]),
                  'jac': conJac(conFuncs[i]),
                  } for i in range(conFuncs.shape[0])]
         cons.extend(self.con)

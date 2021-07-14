@@ -1,4 +1,3 @@
-import time
 import numpy as np
 import polytope as pc
 import torch
