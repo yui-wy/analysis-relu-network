@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 
-class AnalysisNet(nn.Module):
+class AysBaseModule(nn.Module):
     """
     Getting weight_graph and bias_graph from network.
 
@@ -10,56 +10,42 @@ class AnalysisNet(nn.Module):
         input_size : cifar10 is (3, 32, 32) 
     """
 
-    def __init__(self, input_size=None):
-        super(AnalysisNet, self).__init__()
-        if not isinstance(input_size, torch.Size):
-            input_size = torch.Size(input_size)
-        self._input_size = input_size
-        self._size_prod = None
-        self._size_one = None
+    def __init__(self):
+        super(AysBaseModule, self).__init__()
+        # self._size_prod = None
+        # self._size_one = None
+        self._is_graph = False
         self._layer_num = -1
 
-    @property
-    def size_prod(self):
-        """ 
-        if input size is (3,32,32), this is 3*32*32
-        """
-        assert self._input_size is not None, 'Input_size is None'
-        if self._size_prod is None:
-            self._size_prod = self._get_size_prod(self._input_size)
-        return self._size_prod
+    # @property
+    # def size_prod(self):
+    #     """
+    #     if input size is (3,32,32), this is 3*32*32
+    #     """
+    #     assert self._input_size is not None, 'Input_size is None'
+    #     if self._size_prod is None:
+    #         self._size_prod = self._get_size_prod(self._input_size)
+    #     return self._size_prod
 
-    @property
-    def size_one(self):
-        """ 
-        if input size is (3,32,32), this is (1,1,1)
-        """
-        assert self._input_size is not None, 'Input_size is None'
-        if self._size_one is None:
-            self._size_one = self._get_size_to_one(self._input_size)
-        return self._size_one
+    # @property
+    # def size_one(self):
+    #     """
+    #     if input size is (3,32,32), this is (1,1,1)
+    #     """
+    #     assert self._input_size is not None, 'Input_size is None'
+    #     if self._size_one is None:
+    #         self._size_one = self._get_size_to_one(self._input_size)
+    #     return self._size_one
 
     def _get_size_to_one(self, size):
         assert isinstance(size, torch.Size), 'Input must be a torch.Size'
         return torch.Size(map(lambda x: int(x / x), size))
 
-    def _get_size_prod(self, size):
-        assert isinstance(size, torch.Size), 'Input must be a torch.Size'
-        return size.numel()
-
-    def forward_graph(self, x, pre_weight_graph=None, pre_bias_graph=None):
+    def forward_graph(self, x, weight_graph=None, bias_graph=None):
         """
             >>> net.eval()
             >>> with torch.no_grad():
                     forward_graph(...)
-        """
-        raise NotImplementedError
-
-    def forward_graph_Layer(self, x, layer=0, pre_weight_graph=None, pre_bias_graph=None):
-        """
-            >>> net.eval()
-            >>> with torch.no_grad():
-                    forward_graph_Layer(...)
         """
         raise NotImplementedError
 
@@ -103,7 +89,7 @@ class AnalysisNet(nn.Module):
         elif isinstance(module, nn.Sequential):
             # Sequential unit
             output, weight_graph, bias_graph = self._analysis_Sequential(x, module, pre_weight_graph, pre_bias_graph)
-        elif isinstance(module, AnalysisNet):
+        elif isinstance(module, AysBaseModule):
             # AnalysisNet unit
             output, weight_graph, bias_graph = self._analysis_child_class(x, module, pre_weight_graph, pre_bias_graph)
         else:
@@ -111,28 +97,28 @@ class AnalysisNet(nn.Module):
 
         return output.detach(), weight_graph.detach(), bias_graph.detach()
 
-    def _analysis_conv2d(self, x, module, pre_weight_graph=None, pre_bias_graph=None):
-        """
-        Analyzing conv2d \n
-        group = 1, dilation = 1\n
-        graph_size : (n, c, h, w, (*input_size))
-        """
-        output = module(x)
+    # def _analysis_conv2d(self, x, module, pre_weight_graph=None, pre_bias_graph=None):
+    #     """
+    #     Analyzing conv2d \n
+    #     group = 1, dilation = 1\n
+    #     graph_size : (n, c, h, w, (*input_size))
+    #     """
+    #     output = module(x)
 
-        if pre_bias_graph is None:
-            pre_bias_graph = torch.zeros_like(x, device=self._device)
-        bias_graph = module(pre_bias_graph)
+    #     if pre_bias_graph is None:
+    #         pre_bias_graph = torch.zeros_like(x, device=self._device)
+    #     bias_graph = module(pre_bias_graph)
 
-        graph_size = (*output.size(), *self._input_size)
-        in_channels = module.in_channels
-        out_channels = module.out_channels
-        kernel_size = module.kernel_size
-        padding = module.padding
-        stride = module.stride
-        kernel_weight = module.weight
+    #     graph_size = (*output.size(), *self._input_size)
+    #     in_channels = module.in_channels
+    #     out_channels = module.out_channels
+    #     kernel_size = module.kernel_size
+    #     padding = module.padding
+    #     stride = module.stride
+    #     kernel_weight = module.weight
 
-        weight_graph = self._conv2d_opt(x, in_channels, out_channels, kernel_size, padding, stride, kernel_weight, graph_size, pre_weight_graph)
-        return output, weight_graph, bias_graph
+    #     weight_graph = self._conv2d_opt(x, in_channels, out_channels, kernel_size, padding, stride, kernel_weight, graph_size, pre_weight_graph)
+    #     return output, weight_graph, bias_graph
 
     def _analysis_avgPool2d(self, x, module, pre_weight_graph=None, pre_bias_graph=None):
         """
@@ -232,65 +218,65 @@ class AnalysisNet(nn.Module):
 
         return output, graph, bias_graph
 
-    def _analysis_linear(self, x, module, pre_weight_graph, pre_bias_graph=None):
-        """
-        Analyzing linear \n
-        graph_size: (n, out_feature, (*input_size)))
-        """
-        output = module(x)
+    # def _analysis_linear(self, x, module, pre_weight_graph, pre_bias_graph=None):
+    #     """
+    #     Analyzing linear \n
+    #     graph_size: (n, out_feature, (*input_size)))
+    #     """
+    #     output = module(x)
 
-        if pre_bias_graph is None:
-            pre_bias_graph = torch.zeros_like(x, device=self._device)
-        bias_graph = module(pre_bias_graph)
+    #     if pre_bias_graph is None:
+    #         pre_bias_graph = torch.zeros_like(x, device=self._device)
+    #     bias_graph = module(pre_bias_graph)
 
-        graph_size = (*output.size(), *self._input_size)
-        in_features = module.in_features
-        out_feature = module.out_features
-        # (out_feature, in_features)
-        weight = module.weight
+    #     graph_size = (*output.size(), *self._input_size)
+    #     in_features = module.in_features
+    #     out_feature = module.out_features
+    #     # (out_feature, in_features)
+    #     weight = module.weight
 
-        # create hook of x
-        # (n, out_features, in_features)
-        hook_x = torch.zeros(x.shape[0], out_feature, *x.shape[1:], device=self._device)
+    #     # create hook of x
+    #     # (n, out_features, in_features)
+    #     hook_x = torch.zeros(x.shape[0], out_feature, *x.shape[1:], device=self._device)
 
-        # create weight_graph and bias_graph
-        # (n, out_features, (*input_size))
-        weight_graph = torch.zeros(graph_size, device=self._device)
+    #     # create weight_graph and bias_graph
+    #     # (n, out_features, (*input_size))
+    #     weight_graph = torch.zeros(graph_size, device=self._device)
 
-        hook_x += weight
-        if pre_weight_graph is None:
-            weight_graph += hook_x
-        else:
-            pre_graph_n = pre_weight_graph.view(pre_weight_graph.size(0), in_features, -1)
-            weight_graph = torch.matmul(hook_x, pre_graph_n).view(-1, out_feature, *self._input_size)
+    #     hook_x += weight
+    #     if pre_weight_graph is None:
+    #         weight_graph += hook_x
+    #     else:
+    #         pre_graph_n = pre_weight_graph.view(pre_weight_graph.size(0), in_features, -1)
+    #         weight_graph = torch.matmul(hook_x, pre_graph_n).view(-1, out_feature, *self._input_size)
 
-        return output, weight_graph, bias_graph
+    #     return output, weight_graph, bias_graph
 
-    def _analysis_ReLU(self, x, module, pre_weight_graph=None, pre_bias_graph=None):
-        """
-        Analyzing ReLU \n
-        Using inplace = False \n
-        graph_size: ((*x.shape)), (*input_size))
-        """
-        if module.inplace:
-            print('WARNING: \'inplace\' of ReLU is True!!!')
-        output = module(x)
-        graph_size = (*output.size(), *self._input_size)
-        one_tensor = torch.ones((1), device=self._device)
-        zero_tensor = torch.zeros((1), device=self._device)
-        # ((*x.shape))
-        x_relu_hot = torch.where(x > 0, one_tensor, zero_tensor)
-        # ((*x.shape)), (*input_size))
-        weight_graph = torch.zeros(graph_size, device=self._device)
-        bias_graph = torch.zeros(*output.size(), device=self._device)
-        weight_graph += x_relu_hot.view(*x_relu_hot.size(), *self.size_one)
-        bias_graph += x_relu_hot
-        if pre_weight_graph is None:
-            pre_weight_graph, pre_bias_graph = 1, 0
-        weight_graph *= pre_weight_graph
-        bias_graph *= pre_bias_graph
+    # def _analysis_ReLU(self, x, module, pre_weight_graph=None, pre_bias_graph=None):
+    #     """
+    #     Analyzing ReLU \n
+    #     Using inplace = False \n
+    #     graph_size: ((*x.shape)), (*input_size))
+    #     """
+    #     if module.inplace:
+    #         print('WARNING: \'inplace\' of ReLU is True!!!')
+    #     output = module(x)
+    #     graph_size = (*output.size(), *self._input_size)
+    #     one_tensor = torch.ones((1), device=self._device)
+    #     zero_tensor = torch.zeros((1), device=self._device)
+    #     # ((*x.shape))
+    #     x_relu_hot = torch.where(x > 0, one_tensor, zero_tensor)
+    #     # ((*x.shape)), (*input_size))
+    #     weight_graph = torch.zeros(graph_size, device=self._device)
+    #     bias_graph = torch.zeros(*output.size(), device=self._device)
+    #     weight_graph += x_relu_hot.view(*x_relu_hot.size(), *self.size_one)
+    #     bias_graph += x_relu_hot
+    #     if pre_weight_graph is None:
+    #         pre_weight_graph, pre_bias_graph = 1, 0
+    #     weight_graph *= pre_weight_graph
+    #     bias_graph *= pre_bias_graph
 
-        return output, weight_graph, bias_graph
+    #     return output, weight_graph, bias_graph
 
     def _analysis_BatchNorm2d(self, x, module, pre_weight_graph=None, pre_bias_graph=None):
         """
@@ -345,25 +331,23 @@ class AnalysisNet(nn.Module):
         # create weight_graph and bias_graph
         # (n, out_features, (*input_size))
         weight_graph = torch.zeros(graph_size, device=self._device)
-
         real_weight = (weight / torch.sqrt(running_var + eps)).view(-1, *self.size_one)
-
         weight_graph = pre_weight_graph * real_weight
 
         return output, weight_graph, bias_graph
 
-    def _analysis_Sequential(self, x, module, pre_weight_graph=None, pre_bias_graph=None):
-        weight_graph, bias_graph, output = pre_weight_graph, pre_bias_graph, x
-        for child_modules in module._modules.values():
-            if isinstance(child_modules, AnalysisNet):
-                output, weight_graph, bias_graph = child_modules.forward_graph(output, weight_graph, bias_graph)
-            else:
-                output, weight_graph, bias_graph = self.analysis_module(output, child_modules, weight_graph, bias_graph)
-        return output, weight_graph, bias_graph
+    # def _analysis_Sequential(self, x, module, pre_weight_graph=None, pre_bias_graph=None):
+    #     weight_graph, bias_graph, output = pre_weight_graph, pre_bias_graph, x
+    #     for child_modules in module._modules.values():
+    #         if isinstance(child_modules, AnalysisNet):
+    #             output, weight_graph, bias_graph = child_modules.forward_graph(output, weight_graph, bias_graph)
+    #         else:
+    #             output, weight_graph, bias_graph = self.analysis_module(output, child_modules, weight_graph, bias_graph)
+    #     return output, weight_graph, bias_graph
 
-    def _analysis_child_class(self, x, module, pre_weight_graph=None, pre_bias_graph=None):
-        output, weight_graph, bias_graph = module.forward_graph(x, pre_weight_graph, pre_bias_graph)
-        return output, weight_graph, bias_graph
+    # def _analysis_child_class(self, x, module, pre_weight_graph=None, pre_bias_graph=None):
+    #     output, weight_graph, bias_graph = module.forward_graph(x, pre_weight_graph, pre_bias_graph)
+    #     return output, weight_graph, bias_graph
 
     def _conv2d_opt(self, x, in_channels, out_channels, kernel_size, padding, stride, kernel_weight, graph_size, pre_weight_graph):
         # for conv2d and Pooling2d(avg)
