@@ -11,7 +11,7 @@ from torch.utils.data import dataloader
 
 from analysis_lib.utils import areaUtils
 from dataset import mnist
-from nets.TestNet import TestTNetLinear
+from analysis_lib.models.testnet import TestTNetLinear
 
 TAG = "Linear-32x3"
 N_NUM = [32, 32, 32]
