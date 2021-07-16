@@ -9,8 +9,9 @@ class AysAvgPool2d(nn.AvgPool2d, base.AysBaseModule):
     def forward(self, input):
         return self.easy_forward(super().forward, input)
 
-
     def forward_graph(self, x, weight_graph=None,  bias_graph=None):
+        assert self.ceil_mode, "'ceil_mode' must be True."
+        assert self.count_include_pad, "'count_include_pad' must be True."
         # bias_graph
         bias_graph = torch.zeros_like(x, device=x.device) if bias_graph is None else bias_graph
         bias_graph = super().forward(bias_graph)
@@ -28,7 +29,8 @@ class AysAvgPool2d(nn.AvgPool2d, base.AysBaseModule):
         ks = nn.modules.utils._pair(self.kernel_size)
         padding = nn.modules.utils._pair(self.padding)
         stride = nn.modules.utils._pair(self.stride)
-        kernel_weight = torch.eye(channels, device=x.device).view(channels, channels, 1, 1) / (ks[0] * ks[1])
+        divisor = ks[0] * ks[1] if self.divisor_override is None else self.divisor_override
+        kernel_weight = torch.eye(channels, device=x.device).view(channels, channels, 1, 1) / divisor
         # Conv2d opt
         # ===============================================================
         # hook_x :(n, c_out, c_in, h_in, w_in)

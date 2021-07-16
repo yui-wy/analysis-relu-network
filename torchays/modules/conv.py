@@ -10,6 +10,9 @@ class AysConv2d(nn.Conv2d, base.AysBaseModule):
         return self.easy_forward(super().forward, input)
 
     def forward_graph(self, x, weight_graph=None,  bias_graph=None):
+        assert self.dilation == 1, "Dont support other dilation."
+        assert self.padding_mode == 'zeros', "Dont support other mode"
+        assert self.groups == 1, "Dont support other mode"
         # bias_graph
         bias_graph = torch.zeros_like(x, device=x.device) if bias_graph is None else bias_graph
         bias_graph = super().forward(bias_graph)

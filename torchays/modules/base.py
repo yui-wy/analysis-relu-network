@@ -112,3 +112,5 @@ class AysBaseModule(nn.Module):
                 input = (input,)
             output = function(*input)
         return output
+
+    
