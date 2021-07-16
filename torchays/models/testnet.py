@@ -2,11 +2,11 @@ from torchays import modules
 
 
 class TestTNetLinear(modules.AysBaseModule):
-    def __init__(self, input_size=(2,), nNum: tuple = [32, 32, 32], n_classes=2):
+    def __init__(self, in_features=2, nNum: tuple = [32, 32, 32], n_classes=2):
         super(TestTNetLinear, self).__init__()
         self.numLayers = len(nNum)
         self.reLUNum = self.numLayers-1
-        self.add_module("0", modules.AysLinear(input_size[0], nNum[0], bias=True))
+        self.add_module("0", modules.AysLinear(in_features, nNum[0], bias=True))
         self.relu = modules.AysReLU()
         for i in range(self.numLayers-1):
             fc = modules.AysLinear(nNum[i], nNum[i+1], bias=True)

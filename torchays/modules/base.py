@@ -55,6 +55,15 @@ class AysBaseModule(nn.Module):
     def eval(self):
         self.train(False)
 
+    def val(self):
+        """ training = False, graphing = False """
+        self.training = False
+        self.graphing = False
+        for module in self.children():
+            if isinstance(module, AysBaseModule):
+                module.val()
+        return self
+
     def get_input(self, input):
         """  
         If 'graphing' is True, using this function to get the input.
@@ -87,9 +96,19 @@ class AysBaseModule(nn.Module):
         }
 
     def easy_forward(self, function: Callable[..., Any], input):
+        """  
+        This function uses the "forward_graph", if self.graphing is True.
+
+        args:
+            function: a callable function.
+            input: if there are many inputs, please use the 'tuple'. for example: (input_1,input_2,...)
+
+        """
         if self.graphing:
             args, kwargs = self.get_input(input)
             output = (function(*args), self.get_graph(*args, **kwargs))
         else:
-            output = function(input)
+            if not isinstance(input, tuple):
+                input = (input,)
+            output = function(*input)
         return output

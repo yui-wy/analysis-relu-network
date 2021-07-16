@@ -1,24 +1,24 @@
 import logging
 import math
 import os
-from typing import Dict
-import polytope as pc
+
 import matplotlib.pyplot as plt
 import numpy as np
+import polytope as pc
 import torch
 from sklearn.datasets import *
-from torch.utils.data import dataloader
+from torch.utils import data
 
-from analysis_lib.utils import areaUtils
-from analysis_lib.models.testnet import TestTNetLinear
+from torchays.models.testnet import TestTNetLinear
+from torchays.utils import areaUtils
 
 GPU_ID = 0
 SEED = 5
 # DATASET = f"random{SEED}"
 DATASET = 'toy'
-N_NUM = [32, 32, 32]
+N_NUM = [16, 16, 16]
 N_SAMPLE = 1000
-TAG = f"Linear-{N_NUM}".replace(' ', '')
+TAG = f"Linear-{N_NUM}-{DATASET}-{N_SAMPLE}".replace(' ', '')
 
 MAX_EPOCH = 100
 SAVE_EPOCH = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
@@ -44,7 +44,7 @@ torch.cuda.manual_seed_all(SEED)
 np.random.seed(SEED)
 
 
-class ToyDateBase(dataloader.Dataset):
+class ToyDateBase(data.Dataset):
     def __init__(self, x, y, isNorm=True) -> None:
         super().__init__()
         self.x = x
@@ -69,7 +69,7 @@ def accuracy(x, classes):
 
 
 def val_net(net, val_dataloader):
-    net.eval()
+    net.val()
     with torch.no_grad():
         val_accuracy_sum = 0
         for _, (x, y) in enumerate(val_dataloader, 1):
@@ -114,10 +114,10 @@ def getDataSet(setName, n_sample, noise, random_state, data_path):
 
 def train():
     dataset, n_classes = getDataSet(DATASET, N_SAMPLE, 0.2, 5, SAVE_DIR)
-    trainLoader = dataloader.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+    trainLoader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
     totalStep = math.ceil(len(dataset) / BATCH_SIZE)
 
-    net = TestTNetLinear((2,), N_NUM, n_classes).to(device)
+    net = TestTNetLinear(2, N_NUM, n_classes).to(device)
     optim = torch.optim.Adam(net.parameters(), lr=LR, weight_decay=1e-4, betas=[0.9, 0.999])
     ce = torch.nn.CrossEntropyLoss()
 
@@ -137,7 +137,7 @@ def train():
             acc = accuracy(x, y) / x.size(0)
 
             if (epoch+1) == 1 and (j in steps):
-                net.eval()
+                net.val()
                 idx = steps.index(j)
                 torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_{save_step[idx]}.pth'))
             print(f"Epoch: {epoch+1} / {MAX_EPOCH}, Step: {j} / {totalStep}, Loss: {loss:.4f}, Acc: {acc:.4f}")
@@ -150,9 +150,8 @@ def train():
 
 def getRegion():
     dataset, n_classes = getDataSet(DATASET, N_SAMPLE, 0.2, 5, SAVE_DIR)
-    val_dataloader = dataloader.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
-    net = TestTNetLinear((2,), N_NUM, n_classes)
-    net.eval()
+    val_dataloader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+    net = TestTNetLinear(2, N_NUM, n_classes)
     au = areaUtils.AnalysisReLUNetUtils(device=device)
     modelList = os.listdir(MODEL_DIR)
     with torch.no_grad():
@@ -170,7 +169,7 @@ def getRegion():
             net = net.to(device)
             acc = val_net(net, val_dataloader).cpu().numpy()
             print(f'Accuracy: {acc:.4f}')
-            regionNum = au.getAreaNum(net, 1., countLayers=net.reLUNum, saveArea=True)
+            regionNum = au.getAreaNum(net, 1., inputSize=(2,), countLayers=net.reLUNum, saveArea=True)
             funcs, areas, points = au.getAreaData()
             # draw fig
             drawRegionImg(regionNum, funcs, areas, points, saveDir)
@@ -207,6 +206,7 @@ def drawRegionImg(regionNum, funcs, areas, points, saveDir, minBound=-1, maxBoun
 
 def drawRegionImgResult(regionNum, funcs, areas, points, saveDir, net, minBound=-1, maxBound=1, fileName="regionImgResult.png"):
     net = net.to(device)
+    net.val()
     fig = plt.figure(0, figsize=(8, 7), dpi=600)
     ax = fig.subplots()
     ax.cla()

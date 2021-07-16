@@ -10,8 +10,8 @@ class AysSequential(nn.Sequential, base.AysBaseModule):
         if self.graphing:
             for child_modules in self._modules.values():
                 assert isinstance(child_modules, base.AysBaseModule), "child modules must be AysBaseModule."
-                output, graph = child_modules(*output, **graph)
-            return output, graph
+                input = child_modules(input)
+            return input
         else:
             return super().forward(input)
 
