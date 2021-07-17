@@ -69,7 +69,7 @@ data = torch.randn(2, 3, 8, 8)
 net = TestNet().to(device)
 
 """ 
-If net need to be trained, net can use 'net.train()' which cannot genarate the graph. 'net.val()' use to validation or test net without graph. 'net.eval()' will genarate the graph, and the output of the network is a tuple with result of network and a dict about network graph with 'weight_graph' and 'bias_graph'.
+If the net needs to be trained, net can use 'net.train()' which cannot genarate the graph. 'net.val()' uses to validation or test net without graph. 'net.eval()' will genarate the graph, and the output of the network is a tuple with result of network and a dict about network graph with 'weight_graph' and 'bias_graph'.
 """
 net.eval()
 with torch.no_grad():
