@@ -94,12 +94,8 @@ class AnalysisReLUNetUtils(object):
             # (1, *output.size(), *input.size())
             weight_graph, bias_graph = graph['weight_graph'], graph['bias_graph']
             # (output.num, input.num)
-<<<<<<< HEAD:analysis_lib/utils/areaUtils.py
-            weight_graph = weight_graph.reshape(-1, self.net.size_prod)
-=======
             weight_graph = weight_graph.reshape(-1, point.size()[1:].numel())
             # self.logger.info(weight_graph.size())
->>>>>>> dev:torchays/utils/areaUtils.py
             # (output.num, 1)
             bias_graph = bias_graph.reshape(-1, 1)
             # self.logger.info(bias_graph.size())
