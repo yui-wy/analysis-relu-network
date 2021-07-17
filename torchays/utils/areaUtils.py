@@ -5,14 +5,15 @@ import numpy as np
 import torch
 from scipy.optimize import minimize
 
-from ..analysisNet import AnalysisNet
+from torchays.modules.base import AysBaseModule
+from torchays.utils.minfunc import func, funcJac, conFunc, conFunc1, conJac, boundFun, boundJac, cfunc, jacCcfunc, ccfunc, jacCfunc
 
 
 class WapperArea(object):
     """
     Get the area(sign) of the funtion list.
-    *  1 : >= 0
-    * -1 : < 0
+    *  1 : f(x) >= 0
+    * -1 : f(x) < 0
     """
 
     def __init__(self):
@@ -57,19 +58,25 @@ class WapperArea(object):
 
 class AnalysisReLUNetUtils(object):
     """
-    args :
-        - device : GPU or CPU to get the graph;
-        - logger : print the information (Default: print in console)(logger.info(...));
+    AnalysisReLUNetUtils needs to ensure that the net has the function:
+        >>> def forward_graph_Layer(*args, layer=layerNum)
+            # 'layer' is a int parameters which can get the layer weight and bias graph.
+
+    args:
+        device: torch.device
+            GPU or CPU to get the graph from the network;
+        logger: def info(...)
+            print the information (Default: print in console)(logger.info(...)).
     """
 
     def __init__(self, device=torch.device('cpu'), logger=None):
         self.device = device
         self.one = torch.ones(1, device=self.device).double()
         if logger is None:
-            self.logger = logging.getLogger("AnalysisReLUNetUtils")
-            self.logger.setLevel(level=logging.INFO)  # 定义过滤级别
+            self.logger = logging.getLogger("AnalysisReLUNetUtils-Console")
+            self.logger.setLevel(level=logging.INFO)
             formatter = logging.Formatter('[%(asctime)s] - %(name)s : %(message)s')
-            console = logging.StreamHandler()  # 日志信息显示在终端terminal
+            console = logging.StreamHandler()
             console.setLevel(logging.INFO)
             console.setFormatter(formatter)
             self.logger.addHandler(console)
@@ -80,15 +87,19 @@ class AnalysisReLUNetUtils(object):
         """
         Get the list of the linear function before ReLU layer.
         """
-        self.net.eval()
         point = torch.from_numpy(point).float()
         point = point.to(self.device).unsqueeze(dim=0)
         with torch.no_grad():
-            _, weight_graph, bias_graph = self.net.forward_graph_Layer(point, layer=layerNum)
+            _, graph = self.net.forward_graph_Layer(point, layer=layerNum)
             # (1, *output.size(), *input.size())
-            weight_graph, bias_graph = weight_graph[0], bias_graph[0]
+            weight_graph, bias_graph = graph['weight_graph'], graph['bias_graph']
             # (output.num, input.num)
+<<<<<<< HEAD:analysis_lib/utils/areaUtils.py
             weight_graph = weight_graph.reshape(-1, self.net.size_prod)
+=======
+            weight_graph = weight_graph.reshape(-1, point.size()[1:].numel())
+            # self.logger.info(weight_graph.size())
+>>>>>>> dev:torchays/utils/areaUtils.py
             # (output.num, 1)
             bias_graph = bias_graph.reshape(-1, 1)
             # self.logger.info(bias_graph.size())
@@ -284,7 +295,13 @@ class AnalysisReLUNetUtils(object):
             return self._updataFunc(func)
         return func
 
-    def getAreaNum(self, net: AnalysisNet, bound: float = 1.0, countLayers: int = -1, pFuncList: torch.Tensor = None, pArea: torch.Tensor = None, saveArea: bool = False):
+    def getAreaNum(self, net: AysBaseModule,
+                   bound: float = 1.0,
+                   countLayers: int = -1,
+                   inputSize: tuple = (2,),
+                   pFuncList: torch.Tensor = None,
+                   pArea: torch.Tensor = None,
+                   saveArea: bool = False):
         """
         目前只支持方形的输入空间画图，需要修改。
         Area:
@@ -299,23 +316,25 @@ class AnalysisReLUNetUtils(object):
             * A: tensor[ :, : -1];
             * B: tensor[ :, -1];
         """
-        assert isinstance(net, AnalysisNet), "the type of net must be \"AnalysisNet\"."
+        assert isinstance(net, AysBaseModule), "the type of net must be \"AysBaseModule\"."
         assert countLayers != -1, "countLayers must >= 0."
         assert bound > 0, "Please set the bound > 0."
         self.logger.info("Start Get region number...")
         self.net, self.countLayers, self.bound, self.saveArea = net.to(self.device), countLayers, bound, saveArea
+        self.net.eval()
         self.regist = self._updateAreaListRegist if saveArea else self._defaultRegist
         self.areaFuncs, self.areas, self.points = [], [], []
         self.initCon()
         if (pFuncList is not None) and (pArea is not None):
             point = self._calulateAreaPoint(pFuncList, pArea)
         else:
-            pFuncList1 = torch.cat([torch.eye(self.net.size_prod), torch.zeros(self.net.size_prod, 1)-self.bound], dim=1)  # < 0
-            pFuncList2 = torch.cat([torch.eye(self.net.size_prod), torch.zeros(self.net.size_prod, 1)+self.bound], dim=1)  # >=0
+            size_prod = torch.Size(inputSize).numel()
+            pFuncList1 = torch.cat([torch.eye(size_prod), torch.zeros(size_prod, 1)-self.bound], dim=1)  # < 0
+            pFuncList2 = torch.cat([torch.eye(size_prod), torch.zeros(size_prod, 1)+self.bound], dim=1)  # >=0
             pFuncList = torch.cat([pFuncList1, pFuncList2], dim=0)
-            pArea = torch.ones(self.net.size_prod*2, dtype=torch.int8)
-            pArea[0:self.net.size_prod] = -1
-            point = np.zeros([*self.net._input_size])
+            pArea = torch.ones(size_prod*2, dtype=torch.int8)
+            pArea[0:size_prod] = -1
+            point = np.zeros(*inputSize)
         regionNum = self._getLayerAreaNum(point, pFuncList, pArea, 0)
         self.logger.info(f"regionNum: {regionNum}")
         return regionNum
@@ -342,75 +361,3 @@ class AnalysisReLUNetUtils(object):
         """
         assert self.saveArea, "Not save some area infomation"
         return self.areaFuncs, self.areas, self.points
-
-# ================================================================
-# Minimize function.
-
-
-def func(function):
-    """  (aX+b)^2 """
-    def xx(x):
-        return np.square(np.matmul(x, function[:-1]) + function[-1])
-    return xx
-
-
-def funcJac(function):
-    """ {2a_i(aX+b);i in (0, n)} """
-    def xx(x):
-        return np.array([((np.matmul(x, function[:-1]) + function[-1]) * function[i] * 2) for i in range(function.shape[0]-1)])
-    return xx
-
-
-def conFunc(function):
-    """ aX+b """
-    def xx(x):
-        return np.matmul(x, function[:-1]) + function[-1]
-    return xx
-
-
-def conFunc1(function):
-    """ aX+b """
-    def xx(x):
-        return np.matmul(x, function[:-1]) + function[-1] - 1e-10
-    return xx
-
-
-def conJac(function):
-    """ {a_i;i in (0, n)} """
-    def xx(x):
-        return function[:-1]
-    return xx
-
-
-def boundFun(x):
-    return np.sum(np.square(x)) - 1e-32
-
-
-def boundJac(x):
-    return np.array([2*x[i] for i in range(x.shape[0])])
-
-
-def cfunc(function, normA):
-    def xx(x):
-        return np.matmul(x[:-1], function[:-1]) + function[-1] - normA * x[-1]
-    return xx
-
-
-def jacCfunc(function, normA):
-    def xx(x):
-        return np.append(function[:-1], -normA)
-    return xx
-
-
-def ccfunc(funcion):
-    def xx(x):
-        return -x[-1]
-    return xx
-
-
-def jacCcfunc(function):
-    def xx(x):
-        output = np.zeros_like(function)
-        output[-1] -= 1
-        return output
-    return xx

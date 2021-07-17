@@ -28,11 +28,10 @@ __all__ = [
  - Scipy 1.5.4 or above
  - Numpy 
 
-
 ## Example
 
 ### Sample example
-This example shows how to create a module to generate the linear graph. This example is in [graphDemo.py](examples/graphDemo.py).
+This example shows how to create a module to generate the linear graph. This example is in [graphDemo.py](../examples/graphDemo.py).
 ```python
 import torch
 from torchays import modules
@@ -84,10 +83,10 @@ with torch.no_grad():
 
 ### Linear Regions of ReLU DNNs
 
-The utils class '`AnalysisReLUNetUtils`' in [areaUtils.py](torchays/utils/areaUtils.py) can get the number and functions of the Linear Regions of ReLU DNNs which only has ReLU activation in the framework without the other nonlinearity layers.
+The utils class '`AnalysisReLUNetUtils`' in [areaUtils.py](../torchays/utils/areaUtils.py) can get the number and functions of the Linear Regions of ReLU DNNs which only has ReLU activation in the framework without the other nonlinearity layers.
 
-In [regionsDemo.py](examples/regionsDemo.py), a smaple implementation is shown to get the linear regions number of the ReLU DNN and draw the linear regions by the 2D data.
+In [regionsDemo.py](../examples/regionsDemo.py), a smaple implementation is shown to get the linear regions number of the ReLU DNN and draw the linear regions by the 2D data.
 
 #### A region image
 The data learned by the DNN have the bound (-1< x <1) in our examples.
-![regions](docs/images/regions.png)
+![regions](images/regions.png)
