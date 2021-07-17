@@ -3,8 +3,6 @@ import torch
 import torch.nn as nn
 from typing import Any
 
-from torch.tensor import Tensor
-
 
 class AysBaseModule(nn.Module):
     """
@@ -112,5 +110,3 @@ class AysBaseModule(nn.Module):
                 input = (input,)
             output = function(*input)
         return output
-
-    

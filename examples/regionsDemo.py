@@ -1,12 +1,10 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import polytope as pc
 import torch
 import torch.nn as nn
-import matplotlib.pyplot as plt
-
 from torchays import modules as nn
 from torchays.utils import areaUtils
-
 
 GPU_ID = 0
 device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
@@ -66,4 +64,5 @@ for i in range(num):
 
 plt.xlim(-1, 1)
 plt.ylim(-1, 1)
+plt.axis('off')
 plt.show()
