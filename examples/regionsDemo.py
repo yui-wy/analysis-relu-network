@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polytope as pc
 import torch
-import torch.nn as nn
 from torchays import modules as nn
 from torchays.utils import areaUtils
 
