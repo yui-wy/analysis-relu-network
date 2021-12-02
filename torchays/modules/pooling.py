@@ -43,7 +43,6 @@ class AysAvgPool2d(nn.AvgPool2d, base.AysBaseModule):
                     wg[:, :, h, w] = hook_x[:, :, :, padding[0]: hook_x.shape[3]-padding[0], padding[1]: hook_x.shape[4]-padding[1]]
                     hook_x.zero_()
         # ===============================================================
-        # speed 1
         else:
             # hook_kernel_weight : (w_out, c_out, c_in, k , w_in+2padding)
             hook_kernel_weight = torch.zeros(w_n, channels, channels, ks[0], x.size(3)+padding[1]*2, device=x.device)

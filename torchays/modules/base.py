@@ -2,6 +2,7 @@ from typing import Callable
 import torch
 import torch.nn as nn
 from typing import Any
+from torch import Tensor
 
 
 class AysBaseModule(nn.Module):
@@ -27,7 +28,7 @@ class AysBaseModule(nn.Module):
     def _get_input_size(self, x, weight_graph):
         return x.size()[1:] if weight_graph is None else weight_graph.size()[len(x.size()):]
 
-    def _forward_graph_unimplemented(self, *input, weight_graph=None, bias_graph=None):
+    def _forward_graph_unimplemented(self, *input, weight_graph: Tensor = None, bias_graph: Tensor = None):
         raise NotImplementedError
 
     # forward_graph(Any):

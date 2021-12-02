@@ -8,6 +8,12 @@ from scipy.optimize import minimize
 from torchays.modules.base import AysBaseModule
 from torchays.utils.minfunc import func, funcJac, conFunc, conFunc1, conJac, boundFun, boundJac, cfunc, jacCcfunc, ccfunc, jacCfunc
 
+# TODO: 使用递归来进行一种迭代算法。简单来说就是暴力搜索每种节点，然后继续向下搜索下一个区域的方式。
+# 搜索不到子节点就停止。不考虑Bound以外的数据，确保训练数据在一个bound以内。例如图像是每个像素点是（0-255）
+
+# 优化1：减少递归使用；x
+# 优化2：增加下一个区域的搜索，取消暴力循环历遍。（大幅度减少搜索时间）；√
+# 优化3：尝试区域内点的搜索方式，改进条件约束的计算方式，减少点计算时间；x
 
 class WapperArea(object):
     """
@@ -300,6 +306,7 @@ class AnalysisReLUNetUtils(object):
                    saveArea: bool = False):
         """
         目前只支持方形的输入空间画图，需要修改。
+
         Area:
             *  1: aX+b >= 0;
             * -1: aX+b < 0;

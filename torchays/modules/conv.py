@@ -39,7 +39,6 @@ class AysConv2d(nn.Conv2d, base.AysBaseModule):
                     wg[:, :, h, w] = hook_x[:, :, :, self.padding[0]: hook_x.shape[3]-self.padding[0], self.padding[1]: hook_x.shape[4]-self.padding[1]]
                     hook_x.zero_()
         # ===============================================================
-        # speed 1
         else:
             # hook_kernel_weight : (w_out, c_out, c_in, k , w_in+2padding)
             hook_kernel_weight = torch.zeros(w_n, self.out_channels, self.in_channels, self.kernel_size[0], x.size(3)+self.padding[1]*2, device=x.device)

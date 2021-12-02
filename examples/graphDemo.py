@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from torchays import modules
+from torch import Tensor
 
 
 GPU_ID = 0
@@ -33,7 +34,7 @@ class TestNet(modules.AysBaseModule):
         x = self.linear(x)
         return x
 
-    def forward_graph(self, x, weight_graph=None, bias_graph=None):
+    def forward_graph(self, x, weight_graph: Tensor = None, bias_graph: Tensor = None):
         input_size = self._get_input_size(x, weight_graph)
         bias_graph = bias_graph.reshape(bias_graph.size(0), -1)
         weight_graph = weight_graph.reshape(weight_graph.size(0), -1, *input_size)
