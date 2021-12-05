@@ -15,6 +15,7 @@ from torchays.utils.minfunc import func, funcJac, conFunc, conFunc1, conJac, bou
 # 优化2：增加下一个区域的搜索，取消暴力循环历遍。（大幅度减少搜索时间）；√
 # 优化3：尝试区域内点的搜索方式，改进条件约束的计算方式，减少点计算时间；x
 
+
 class WapperArea(object):
     """
     Get the area(sign) of the funtion list.
@@ -65,8 +66,10 @@ class WapperArea(object):
 class AnalysisReLUNetUtils(object):
     """
     AnalysisReLUNetUtils needs to ensure that the net has the function:
-        >>> def forward_graph_Layer(*args, layer=layerNum)
-            # 'layer' is a int parameters which can get the layer weight and bias graph.
+        >>> def forward_graph_Layer(*args, layer=layerNum):
+        >>>     ''' layer is a 'int' before every ReLU module. 'Layer' can get the layer weight and bias graph.'''
+        >>>     if layer == num:
+        >>>         return output
 
     args:
         device: torch.device
@@ -77,7 +80,7 @@ class AnalysisReLUNetUtils(object):
 
     def __init__(self, device=torch.device('cpu'), logger=None):
         self.device = device
-        self.one = torch.ones(1, device=self.device).double()
+        self.one = torch.ones(1).double()
         if logger is None:
             self.logger = logging.getLogger("AnalysisReLUNetUtils-Console")
             self.logger.setLevel(level=logging.INFO)
@@ -310,7 +313,6 @@ class AnalysisReLUNetUtils(object):
         Area:
             *  1: aX+b >= 0;
             * -1: aX+b < 0;
-
         Function: a tensor (m)
             * a: tensor[ : -1];
             * b: tensor[-1];
