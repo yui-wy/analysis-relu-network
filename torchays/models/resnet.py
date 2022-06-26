@@ -1,3 +1,4 @@
+from cgitb import reset
 from typing import List
 
 import torchays.modules as ann
@@ -5,15 +6,24 @@ from torch import Tensor
 
 
 class TestResNet(ann.AysBaseModule):
-    def __init__(self, in_features: int, layers: List[int], first_features: int = 32, n_classes: int = 2):
+    """ Not cnn, use linear. """
+
+    def __init__(
+            self,
+            in_features: int,
+            layers: List[int],
+            first_features: int = 32,
+            n_classes: int = 2,
+            norm_layer=ann.AysBatchNorm1d,
+    ):
         super(TestResNet, self).__init__()
         self.num_layers = len(layers)
         self.reLUNum = (self.num_layers-1) * 2 + 1
         self.relu = ann.AysReLU()
-        self._norm_layer = ann.AysBatchNorm1d
+        self._norm_layer = norm_layer
         self.in_features = in_features
         self.linear1 = ann.AysLinear(in_features, first_features)
-        self.bn1 = self._norm_layer(first_features)
+        self.norm1 = self._norm_layer(first_features)
         self.last_linear = ann.AysLinear(layers[-1], n_classes)
         self._make_layers(first_features, layers)
 
@@ -21,29 +31,29 @@ class TestResNet(ann.AysBaseModule):
         self.linear_res = ann.AysLinear(first_features, layers[0])
         for i in range(self.num_layers-1):
             self.add_module(f"linear_{i}_1", ann.AysLinear(layers[i], layers[i], bias=False))
-            self.add_module(f"bn_{i}_1", self._norm_layer(layers[i]))
+            self.add_module(f"norm_{i}_1", self._norm_layer(layers[i]))
             self.add_module(f"linear_{i}_2", ann.AysLinear(layers[i], layers[i+1], bias=False))
-            self.add_module(f"bn_{i}_2", self._norm_layer(layers[i+1]))
+            self.add_module(f"norm_{i}_2", self._norm_layer(layers[i+1]))
             # downsample
             self.add_module(f"linear_{i}_d", ann.AysLinear(layers[i], layers[i+1], bias=False))
-            self.add_module(f"bn_{i}_d", self._norm_layer(layers[i+1]))
+            self.add_module(f"norm_{i}_d", self._norm_layer(layers[i+1]))
 
     def forward(self, x: Tensor):
         out = self.linear1(x)
-        # out = self.bn1(out)
+        out = self.norm1(out)
         out = self.relu(out)
         out = self.linear_res(out)
         # ================================
         # res
         for i in range(self.num_layers-1):
             out1 = self._modules[f"linear_{i}_1"](out)
-            # out1 = self._modules[f"bn_{i}_1"](out1)
+            out1 = self._modules[f"norm_{i}_1"](out1)
             out1 = self.relu(out1)
             out1 = self._modules[f"linear_{i}_2"](out1)
-            # out1 = self._modules[f"bn_{i}_2"](out1)
+            out1 = self._modules[f"norm_{i}_2"](out1)
             # downsample
             out = self._modules[f"linear_{i}_d"](out)
-            # out = self._modules[f"bn_{i}_d"](out)
+            out = self._modules[f"norm_{i}_d"](out)
 
             out = self._forward_plus(out1, out)
             out = self.relu(out)
@@ -55,7 +65,7 @@ class TestResNet(ann.AysBaseModule):
     def forward_graph_Layer(self, x: Tensor, layer=-1):
         assert layer >= 0, "'layer' must be greater than 0."
         out = self.linear1(x)
-        # out = self.bn1(out)
+        out = self.bn1(out)
         if layer == 0:
             return out
         out = self.relu(out)
@@ -64,16 +74,16 @@ class TestResNet(ann.AysBaseModule):
         # res
         for i in range(self.num_layers-1):
             out1 = self._modules[f"linear_{i}_1"](out)
-            # out1 = self._modules[f"bn_{i}_1"](out1)
+            out1 = self._modules[f"norm_{i}_1"](out1)
             # relu
             if layer == (i*2+1):
                 return out1
             out1 = self.relu(out1)
             out1 = self._modules[f"linear_{i}_2"](out1)
-            # out1 = self._modules[f"bn_{i}_2"](out1)
+            out1 = self._modules[f"norm_{i}_2"](out1)
             # downsample
             out = self._modules[f"linear_{i}_d"](out)
-            # out = self._modules[f"bn_{i}_d"](out)
+            out = self._modules[f"norm_{i}_d"](out)
 
             out = self._forward_plus(out1, out)
             # relu

@@ -10,7 +10,7 @@ class AysAvgPool2d(nn.AvgPool2d, base.AysBaseModule):
         return self.easy_forward(super().forward, input)
 
     def forward_graph(self, x, weight_graph=None,  bias_graph=None):
-        assert self.ceil_mode, "'ceil_mode' must be True."
+        assert not self.ceil_mode, "'ceil_mode' must be False."
         assert self.count_include_pad, "'count_include_pad' must be True."
         # bias_graph
         bias_graph = torch.zeros_like(x, device=x.device) if bias_graph is None else bias_graph

@@ -42,7 +42,7 @@ class TestNet(modules.AysBaseModule):
 
 
 net = TestNet().to(device)
-data = torch.randn(2, 3, 8, 8)
+data = torch.randn(2, 3, 8, 8).to(device)
 
 print(net(data))
 

@@ -36,6 +36,13 @@ class _AysBatchNorm(nn.modules.batchnorm._BatchNorm, base.AysBaseModule):
         return base.AysBaseModule.eval(self)
 
 
+class AysBatchNormNone(_AysBatchNorm):
+    def forward(self, input):
+        return input
+
+    def forward_graph(self, x, weight_graph=None, bias_graph=None):
+        return weight_graph, bias_graph
+
 class AysBatchNorm1d(_AysBatchNorm):
     __doc__ = nn.BatchNorm1d.__doc__
 
