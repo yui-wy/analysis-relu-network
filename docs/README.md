@@ -2,10 +2,10 @@
 
 A sample library for linear graph (weight and bias) of DNNs in [PyTorch](https://pytorch.org/). Now the library supports a few of modules. We are trying to make this library work like PyTorch.
 
-#### Features
-  - An thin extension of PyTorch's Module, called AysBaseModule, that simplifies the creation of certain graph models. See the example for an example using AysBaseModule.
-  - This library can generate the linear graph of DNNs easily by forward process.
+## Features
 
+- An thin extension of PyTorch's Module, called AysBaseModule, that simplifies the creation of certain graph models. See the example for an example using AysBaseModule.
+- This library can generate the linear graph of DNNs easily by forward process.
 
 ## Support modules
 
@@ -20,18 +20,22 @@ __all__ = [
     'AysAvgPool2d',
 ]
 ```
+
 `We will update this library to support more modules.`
 
 ## Requirements
- - Python 3.6 or above
- - PyTorch 1.6 or above
- - Scipy 1.5.4 or above
- - Numpy 
+
+- Python 3.6 or above
+- PyTorch 1.6 or above
+- Scipy 1.5.4 or above
+- Numpy
 
 ## Example
 
 ### Sample example
+
 This example shows how to create a module to generate the linear graph. This example is in [graphDemo.py](../examples/graphDemo.py).
+
 ```python
 import torch
 from torchays import modules
@@ -88,5 +92,6 @@ The utils class '`AnalysisReLUNetUtils`' in [areaUtils.py](../torchays/utils/are
 In [regionsDemo.py](../examples/regionsDemo.py), a smaple implementation is shown to get the linear regions number of the ReLU DNN and draw the linear regions by the 2D data.
 
 #### A region image
+
 The data learned by the DNN have the bound (-1< x <1) in our examples.
 ![regions](images/regions.png)

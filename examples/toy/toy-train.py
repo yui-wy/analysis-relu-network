@@ -172,9 +172,9 @@ def getRegion():
             regionNum = au.getAreaNum(net, 1., inputSize=(2,), countLayers=net.reLUNum, saveArea=True)
             funcs, areas, points = au.getAreaData()
             # draw fig
-            drawRegionImg(regionNum, funcs, areas, points, saveDir)
-            drawRegionImgResult(regionNum, funcs, areas, points, saveDir, net)
-            # Save data
+            drawReginImage = DrawReginImage(regionNum, funcs, areas, points, saveDir, net, n_classes)
+            drawReginImage.drawRegionImg()
+            drawReginImage.drawRegionImgResult()
             dataSaveDict = {
                 "funcs": funcs,
                 "areas": areas,
@@ -183,54 +183,6 @@ def getRegion():
                 "accuracy": acc,
             }
             torch.save(dataSaveDict, os.path.join(saveDir, "dataSave.pkl"))
-
-
-def drawRegionImg(regionNum, funcs, areas, points, saveDir, minBound=-1, maxBound=1, fileName="regionImg.png"):
-    fig = plt.figure(0, figsize=(8, 7), dpi=600)
-    ax = fig.subplots()
-    ax.cla()
-    ax.tick_params(labelsize=15)
-    for i in range(regionNum):
-        func, area = funcs[i], areas[i]
-        func = -area.view(-1, 1) * func
-        func = func.numpy()
-        A, B = func[:, :-1], -func[:, -1]
-        p = pc.Polytope(A, B)
-        p.plot(ax, color=np.random.uniform(0.0, 0.95, 3), alpha=1., linestyle='-', linewidth=0.01, edgecolor='w')
-    ax.set_xlim(minBound, maxBound)
-    ax.set_ylim(minBound, maxBound)
-    plt.savefig(os.path.join(saveDir, fileName))
-    plt.clf()
-    plt.close()
-
-
-def drawRegionImgResult(regionNum, funcs, areas, points, saveDir, net, minBound=-1, maxBound=1, fileName="regionImgResult.png"):
-    net = net.to(device)
-    net.val()
-    fig = plt.figure(0, figsize=(8, 7), dpi=600)
-    ax = fig.subplots()
-    ax.cla()
-    ax.tick_params(labelsize=15)
-    for i in range(regionNum):
-        func, area, point = funcs[i], areas[i], points[i]
-        point = torch.from_numpy(point).float().to(device).unsqueeze(dim=0)
-        output = net(point)[0]
-        m = (output[0] - output[1]).cpu().numpy()
-        m = np.clip(m, -12., 12.) / 12
-        if m <= 0:
-            m = np.array([0, -m*0.9, 0.5])
-        elif m > 0:
-            m = np.array([m*0.9, 0, 0.5])
-        func = -area.view(-1, 1) * func
-        func = func.numpy()
-        A, B = func[:, :-1], -func[:, -1]
-        p = pc.Polytope(A, B)
-        p.plot(ax, color=m, alpha=1., linestyle='-', linewidth=0.3, edgecolor='w')
-    ax.set_xlim(minBound, maxBound)
-    ax.set_ylim(minBound, maxBound)
-    plt.savefig(os.path.join(saveDir, fileName))
-    plt.clf()
-    plt.close()
 
 
 def getLogger(saveDir, loggerName):
@@ -244,6 +196,81 @@ def getLogger(saveDir, loggerName):
     logger.addHandler(fh)
     logger.propagate = False
     return logger
+
+
+class DrawReginImage():
+    def __init__(self, regionNum, funcs, areas, points, saveDir, net, n_classes=2, minBound=-1, maxBound=1) -> None:
+        self.regionNum = regionNum
+        self.funcs = funcs
+        self.areas = areas
+        self.points = points
+        self.saveDir = saveDir
+        self.net = net
+        self.n_classes = n_classes
+        self.minBound = minBound
+        self.maxBound = maxBound
+        self.__getColorDict()
+
+    def drawRegionImg(self, fileName="regionImg.png"):
+        fig = plt.figure(0, figsize=(8, 7), dpi=600)
+        ax = fig.subplots()
+        ax.cla()
+        ax.tick_params(labelsize=15)
+        for i in range(self.regionNum):
+            func, area = self.funcs[i], self.areas[i]
+            func = -area.view(-1, 1) * func
+            func = func.numpy()
+            A, B = func[:, :-1], -func[:, -1]
+            p = pc.Polytope(A, B)
+            p.plot(ax, color=np.random.uniform(0.0, 0.95, 3), alpha=1., linestyle='-', linewidth=0.01, edgecolor='w')
+        ax.set_xlim(self.minBound, self.maxBound)
+        ax.set_ylim(self.minBound, self.maxBound)
+        plt.savefig(os.path.join(self.saveDir, fileName))
+        plt.clf()
+        plt.close()
+
+    def drawRegionImgResult(self, fileName="regionImgResult.png"):
+        net = self.net.to(device)
+        net.val()
+        fig = plt.figure(0, figsize=(8, 7), dpi=600)
+        ax = fig.subplots()
+        ax.cla()
+        ax.tick_params(labelsize=15)
+        for i in range(self.regionNum):
+            func, area, point = self.funcs[i], self.areas[i], self.points[i]
+            point = torch.from_numpy(point).float().to(device).unsqueeze(dim=0)
+            output = net(point)[0]
+            color = self.caculateColor(output)
+            func = -area.view(-1, 1) * func
+            func = func.numpy()
+            A, B = func[:, :-1], -func[:, -1]
+            p = pc.Polytope(A, B)
+            p.plot(ax, color=color, alpha=1., linestyle='-', linewidth=0.3, edgecolor='w')
+        ax.set_xlim(self.minBound, self.maxBound)
+        ax.set_ylim(self.minBound, self.maxBound)
+        plt.savefig(os.path.join(self.saveDir, fileName))
+        plt.clf()
+        plt.close()
+
+    def __getColorDict(self):
+        """ 
+        确定初始化颜色方法, 用一个dict来存储不同分类的颜色初始值
+        """
+        self.colorDict = {}
+        for i in range(self.n_classes):
+            self.colorDict[i] = np.random.uniform(0.0, 0.95, 3)
+
+    def caculateColor(self, result: torch.Tensor):
+        """  
+        根据网络计算出来的结果, 计算颜色变化.
+        """
+        maxIdx = result.argmax().item()
+        # 通过对应的取值, 获取对应的预测值的初始颜色
+        color = self.colorDict.get(maxIdx)
+        # 通过初始颜色计算当前颜色
+        alpha = result.softmax(dim=0)[maxIdx].item()
+        color *= alpha
+        return color
 
 
 if __name__ == "__main__":
