@@ -21,7 +21,9 @@ N_SAMPLE = 1000
 TAG = f"Linear-{N_NUM}-{DATASET}-{N_SAMPLE}".replace(' ', '')
 
 MAX_EPOCH = 100
-SAVE_EPOCH = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
+# SAVE_EPOCH = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
+SAVE_EPOCH = [0, 10, 100]
+
 
 BATCH_SIZE = 32
 LR = 1e-3
@@ -240,12 +242,12 @@ class DrawReginImage():
             func, area, point = self.funcs[i], self.areas[i], self.points[i]
             point = torch.from_numpy(point).float().to(device).unsqueeze(dim=0)
             output = net(point)[0]
-            color = self.caculateColor(output)
+            color, alpha = self.caculateColor(output)
             func = -area.view(-1, 1) * func
             func = func.numpy()
             A, B = func[:, :-1], -func[:, -1]
             p = pc.Polytope(A, B)
-            p.plot(ax, color=color, alpha=1., linestyle='-', linewidth=0.3, edgecolor='w')
+            p.plot(ax, color=color, alpha=alpha, linestyle='-', linewidth=0.3, edgecolor='black')
         ax.set_xlim(self.minBound, self.maxBound)
         ax.set_ylim(self.minBound, self.maxBound)
         plt.savefig(os.path.join(self.saveDir, fileName))
@@ -256,9 +258,10 @@ class DrawReginImage():
         """ 
         确定初始化颜色方法, 用一个dict来存储不同分类的颜色初始值
         """
+        COLOR = ('lightcoral', 'royalblue', 'limegreen', 'gold', 'darkorchid', 'aqua', 'tomato', 'deeppink', 'teal')
         self.colorDict = {}
         for i in range(self.n_classes):
-            self.colorDict[i] = np.random.uniform(0.0, 0.95, 3)
+            self.colorDict[i] = COLOR[i]
 
     def caculateColor(self, result: torch.Tensor):
         """  
@@ -268,9 +271,8 @@ class DrawReginImage():
         # 通过对应的取值, 获取对应的预测值的初始颜色
         color = self.colorDict.get(maxIdx)
         # 通过初始颜色计算当前颜色
-        alpha = result.softmax(dim=0)[maxIdx].item()
-        color *= alpha
-        return color
+        alpha = result.softmax(dim=0)[maxIdx].item() - 1 / self.n_classes
+        return color, alpha
 
 
 if __name__ == "__main__":
