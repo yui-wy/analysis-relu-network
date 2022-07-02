@@ -39,7 +39,7 @@ if not os.path.exists(LAB_DIR):
     os.makedirs(LAB_DIR)
 
 device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
-COLOR = ('royalblue', 'limegreen', 'darkorchid', 'aqua', 'tomato', 'violet', 'teal')
+COLOR = ('lightcoral', 'royalblue', 'limegreen', 'gold', 'darkorchid', 'aqua', 'tomato', 'deeppink', 'teal')
 
 torch.manual_seed(SEED)
 torch.cuda.manual_seed_all(SEED)
@@ -53,7 +53,7 @@ class ToyDateBase(data.Dataset):
         if isNorm:
             self.x = (self.x - np.min(self.x)) / (np.max(self.x) - np.min(self.x))
             self.x = (self.x - self.x.mean(0, keepdims=True)) / ((self.x.std(0, keepdims=True) + 1e-16))
-            self.x /= np.max(self.x)
+            self.x /= np.max(np.abs(self.x))
         self.y = y
 
     def __getitem__(self, index):
@@ -106,7 +106,6 @@ def getDataSet(setName, n_sample, noise, random_state, data_path):
         isNorm = False
         n_classes = 2
     if setName[:5] == "noise":
-        # TODO: noise生成
         isNorm = False
         n_classes = 10
     dataset = ToyDateBase(x, y, isNorm)
@@ -247,7 +246,7 @@ class DrawReginImage():
             func = func.numpy()
             A, B = func[:, :-1], -func[:, -1]
             p = pc.Polytope(A, B)
-            p.plot(ax, color=color, alpha=alpha, linestyle='-', linewidth=0.3, edgecolor='black')
+            p.plot(ax, color=color, alpha=alpha, linestyle='-', linewidth=0.3, edgecolor='gray')
         ax.set_xlim(self.minBound, self.maxBound)
         ax.set_ylim(self.minBound, self.maxBound)
         plt.savefig(os.path.join(self.saveDir, fileName))
@@ -258,7 +257,6 @@ class DrawReginImage():
         """ 
         确定初始化颜色方法, 用一个dict来存储不同分类的颜色初始值
         """
-        COLOR = ('lightcoral', 'royalblue', 'limegreen', 'gold', 'darkorchid', 'aqua', 'tomato', 'deeppink', 'teal')
         self.colorDict = {}
         for i in range(self.n_classes):
             self.colorDict[i] = COLOR[i]

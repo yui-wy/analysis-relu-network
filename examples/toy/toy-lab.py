@@ -7,17 +7,18 @@ import torch
 
 DATASET = 'toy'
 ROOT_DIR = os.path.abspath("./")
-COLOR = ('royalblue', 'limegreen', 'darkorchid', 'aqua', 'tomato', 'violet', 'teal')
+COLOR = ('lightcoral', 'royalblue', 'limegreen', 'gold', 'darkorchid', 'aqua', 'tomato', 'deeppink', 'teal')
 
 
 class default_plt:
-    def __init__(self, savePath, xlabel='', ylabel='', mode='png', isGray=False, isLegend=True):
+    def __init__(self, savePath, xlabel='', ylabel='', mode='png', isGray=False, isLegend=True, isGrid=True):
         self.savePath = savePath
         self.xlabel = xlabel
         self.ylabel = ylabel
         self.mode = mode
         self.isGray = isGray
         self.isLegend = isLegend
+        self.isGrid = isGrid
 
     def __enter__(self):
         fig = plt.figure(0, figsize=(8, 7), dpi=600)
@@ -26,11 +27,10 @@ class default_plt:
         if not self.isGray:
             self.ax.patch.set_facecolor("w")
         self.ax.tick_params(labelsize=15)
-        self.ax.set_xlabel(self.xlabel, fontdict={'weight': 'normal', 'size': 20})
-        self.ax.set_ylabel(self.ylabel, fontdict={'weight': 'normal', 'size': 20})
-        self.ax.grid(color="#EAEAEA", linewidth=1)
-        # self.ax.spines['right'].set_color('none')
-        # self.ax.spines['top'].set_color('none')
+        self.ax.set_xlabel(self.xlabel, fontdict={'weight': 'normal', 'size': 15})
+        self.ax.set_ylabel(self.ylabel, fontdict={'weight': 'normal', 'size': 15})
+        if self.isGrid:
+            self.ax.grid(color="#EAEAEA", linewidth=1)
         return self.ax
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -44,8 +44,8 @@ class default_plt:
         plt.close()
 
 
-def default(savePath, xlabel='', ylabel='', mode='png', isGray=False, isLegend=True):
-    return default_plt(savePath, xlabel, ylabel, mode, isGray, isLegend)
+def default(savePath, xlabel='', ylabel='', mode='png', isGray=False, isLegend=True, isGrid=True):
+    return default_plt(savePath, xlabel, ylabel, mode, isGray, isLegend, isGrid)
 
 
 def lab():
@@ -169,10 +169,20 @@ def drawEpochAccPlot(labDict: Dict, saveDir):
 
 def drawDataSet(dataset, saveDir):
     savePath = os.path.join(saveDir, "distribution.png")
-    x, y = dataset['x'], dataset['y']
-    with default(savePath, 'x1', 'x2', isLegend=False) as ax:
-        ax.scatter(x[y == 0, 0], x[y == 0, 1], color=COLOR[0])
-        ax.scatter(x[y == 1, 0], x[y == 1, 1], color=COLOR[1])
+    x, y, isNorm, n_classes = dataset['x'], dataset['y'], dataset['isNorm'], dataset['n_classes']
+    x = norm(x) if isNorm else x
+    with default(savePath, 'x1', 'x2', isLegend=False, isGrid=False) as ax:
+        ax.set_xlim(-1, 1)
+        ax.set_ylim(-1, 1)
+        for i in range(n_classes+1):
+            ax.scatter(x[y == i, 0], x[y == i, 1], color=COLOR[i])
+
+
+def norm(x):
+    x = (x - np.min(x)) / (np.max(x) - np.min(x))
+    x = (x - x.mean(0, keepdims=True)) / ((x.std(0, keepdims=True) + 1e-16))
+    x /= np.max(np.abs(x))
+    return x
 
 
 if __name__ == "__main__":
