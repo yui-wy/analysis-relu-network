@@ -174,7 +174,7 @@ def drawDataSet(dataset, saveDir):
     with default(savePath, 'x1', 'x2', isLegend=False, isGrid=False) as ax:
         ax.set_xlim(-1, 1)
         ax.set_ylim(-1, 1)
-        for i in range(n_classes+1):
+        for i in range(n_classes):
             ax.scatter(x[y == i, 0], x[y == i, 1], color=COLOR[i])
 
 
