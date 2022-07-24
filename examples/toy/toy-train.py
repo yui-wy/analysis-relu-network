@@ -1,6 +1,7 @@
 import logging
 import math
 import os
+import matplotlib
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,6 +11,7 @@ from sklearn.datasets import *
 from torch.utils import data
 
 from torchays.models.testnet import TestTNetLinear
+from torchays.modules.base import AysBaseModule
 from torchays.utils import areaUtils
 
 GPU_ID = 0
@@ -21,9 +23,7 @@ N_SAMPLE = 1000
 TAG = f"Linear-{N_NUM}-{DATASET}-{N_SAMPLE}".replace(' ', '')
 
 MAX_EPOCH = 100
-# SAVE_EPOCH = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
-SAVE_EPOCH = [0, 10, 100]
-
+SAVE_EPOCH = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
 
 BATCH_SIZE = 32
 LR = 1e-3
@@ -200,13 +200,14 @@ def getLogger(saveDir, loggerName):
 
 
 class DrawReginImage():
-    def __init__(self, regionNum, funcs, areas, points, saveDir, net, n_classes=2, minBound=-1, maxBound=1) -> None:
+    def __init__(self, regionNum, funcs, areas, points, saveDir, net: AysBaseModule, n_classes=2, minBound=-1, maxBound=1) -> None:
         self.regionNum = regionNum
         self.funcs = funcs
         self.areas = areas
         self.points = points
         self.saveDir = saveDir
-        self.net = net
+        self.net = net.to(device)
+        self.net.val()
         self.n_classes = n_classes
         self.minBound = minBound
         self.maxBound = maxBound
@@ -230,47 +231,62 @@ class DrawReginImage():
         plt.clf()
         plt.close()
 
-    def drawRegionImgResult(self, fileName="regionImgResult.png"):
-        net = self.net.to(device)
-        net.val()
+    def drawRegionImgResult(self, color_bar: bool = False, fileName: str = "regionImgResult.png"):
         fig = plt.figure(0, figsize=(8, 7), dpi=600)
         ax = fig.subplots()
         ax.cla()
         ax.tick_params(labelsize=15)
+        img = self.__draw_hot(ax)
         for i in range(self.regionNum):
-            func, area, point = self.funcs[i], self.areas[i], self.points[i]
-            point = torch.from_numpy(point).float().to(device).unsqueeze(dim=0)
-            output = net(point)[0]
-            color, alpha = self.caculateColor(output)
+            func, area = self.funcs[i], self.areas[i]
             func = -area.view(-1, 1) * func
             func = func.numpy()
             A, B = func[:, :-1], -func[:, -1]
             p = pc.Polytope(A, B)
-            p.plot(ax, color=color, alpha=alpha, linestyle='-', linewidth=0.3, edgecolor='gray')
+            p.plot(ax, color="w", alpha=0.1, linestyle='-', linewidth=0.3, edgecolor='black')
         ax.set_xlim(self.minBound, self.maxBound)
         ax.set_ylim(self.minBound, self.maxBound)
+        # Tip: draw colorbar
+        if color_bar:
+            fig.colorbar(img)
         plt.savefig(os.path.join(self.saveDir, fileName))
         plt.clf()
         plt.close()
 
+    def __draw_hot(self, ax):
+        num = 1000
+        data = self.__hot_data(num).float()
+        result = self.net(data).softmax(dim=1)
+        result = ((result - 1/self.n_classes) / (1 - 1/self.n_classes))
+        result, maxIdx = torch.max(result, dim=1)
+        result, maxIdx = result.cpu().numpy(), maxIdx.cpu().numpy()
+        result_alpha, result_color = np.empty((num, num)), np.empty((num, num))
+        for i in range(num):
+            result_color[num-1-i] = maxIdx[i*num:(i+1)*num]
+            result_alpha[num-1-i] = result[i*num:(i+1)*num]
+        cmap = matplotlib.colors.ListedColormap(COLOR, name="Region")
+        return ax.imshow(
+            result_color,
+            alpha=result_alpha,
+            cmap=cmap,
+            extent=(self.minBound, self.maxBound, self.minBound, self.maxBound),
+            vmin=0,
+            vmax=len(COLOR),
+        )
+
+    def __hot_data(self, num=1000):
+        x1 = np.linspace(self.minBound, self.maxBound, num)
+        x2 = np.linspace(self.minBound, self.maxBound, num)
+        X1, X2 = np.meshgrid(x1, x2)
+        X1, X2 = X1.flatten(), X2.flatten()
+        data = np.vstack((X1, X2)).transpose()
+        data = torch.from_numpy(data).to(device)
+        return data
+
     def __getColorDict(self):
-        """ 
-        确定初始化颜色方法, 用一个dict来存储不同分类的颜色初始值
-        """
         self.colorDict = {}
         for i in range(self.n_classes):
             self.colorDict[i] = COLOR[i]
-
-    def caculateColor(self, result: torch.Tensor):
-        """  
-        根据网络计算出来的结果, 计算颜色变化.
-        """
-        maxIdx = result.argmax().item()
-        # 通过对应的取值, 获取对应的预测值的初始颜色
-        color = self.colorDict.get(maxIdx)
-        # 通过初始颜色计算当前颜色
-        alpha = result.softmax(dim=0)[maxIdx].item() - 1 / self.n_classes
-        return color, alpha
 
 
 if __name__ == "__main__":

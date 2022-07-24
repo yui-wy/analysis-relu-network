@@ -104,10 +104,8 @@ class AnalysisReLUNetUtils(object):
             weight_graph, bias_graph = graph['weight_graph'], graph['bias_graph']
             # (output.num, input.num)
             weight_graph = weight_graph.reshape(-1, point.size()[1:].numel())
-            # self.logger.info(weight_graph.size())
             # (output.num, 1)
             bias_graph = bias_graph.reshape(-1, 1)
-            # self.logger.info(bias_graph.size())
             # (output.num, input.num + 1)
         return torch.cat([weight_graph, bias_graph], dim=1)
 
