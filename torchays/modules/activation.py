@@ -3,28 +3,28 @@ import torch.nn as nn
 from torchays.modules import base
 
 
-class AysReLU(nn.ReLU, base.AysBaseModule):
-    __doc__ = nn.ReLU.__doc__
+class ParamReLU(base.AysBaseModule):
+    def __init__(self, active_slope: float = 1.0, negative_slope: float = 0.0) -> None:
+        super().__init__()
+        self._active_slope = active_slope
+        self._negative_slope = negative_slope
 
-    def forward(self, input):
-        return self.easy_forward(super().forward, input)
+    def forward(self, _):
+        return NotImplementedError
 
     def forward_graph(self, x, weight_graph=None, bias_graph=None):
-        """
-        Analyzing ReLU \n
-        Using inplace = False \n
-        graph_size: ((*x.shape)), (*input_size))
-        """
-        if self.inplace:
-            print('WARNING: \'inplace\' of ReLU is True!!!')
         input_size = self._get_input_size(x, weight_graph)
         graph_size = weight_graph.size()
         # ((*x.shape)), (*input_size)), ((*x.shape))
-        wg, bg = torch.zeros(graph_size, device=x.device), torch.zeros(*x.size(), device=x.device)
-        one_tensor, zero_tensor = torch.ones((1), device=x.device), torch.zeros((1), device=x.device)
-        # ((*x.shape))
-        x_relu_hot = torch.where(x > 0, one_tensor, zero_tensor)
-        wg += x_relu_hot.view(*x_relu_hot.size(), *self._get_size_to_one(input_size))
+        wg, bg = torch.zeros(graph_size, device=x.device), torch.zeros(
+            *x.size(), device=x.device)
+        active_slope = torch.ones((1), device=x.device) * self._active_slope
+        negative_slope = torch.ones(
+            (1), device=x.device) * self._negative_slope
+        x_relu_hot = torch.where(
+            x > 0, active_slope, negative_slope)
+        wg += x_relu_hot.view(*x_relu_hot.size(), *
+                              self._get_size_to_one(input_size))
         bg += x_relu_hot
         if weight_graph is None:
             weight_graph, bias_graph = 1, 0
@@ -38,3 +38,25 @@ class AysReLU(nn.ReLU, base.AysBaseModule):
 
     def eval(self):
         return base.AysBaseModule.eval(self)
+
+
+class AysReLU(nn.ReLU, ParamReLU):
+    __doc__ = nn.ReLU.__doc__
+
+    def __init__(self, inplace: bool = False) -> None:
+        nn.ReLU.__init__(self, inplace)
+        ParamReLU.__init__(self, 1, 0)
+
+    def forward(self, input):
+        return self.easy_forward(super().forward, input)
+
+
+class AysLeakyRule(nn.LeakyReLU, ParamReLU):
+    __doc__ = nn.LeakyReLU.__doc__
+
+    def __init__(self, negative_slope: float = 0.01, inplace: bool = False) -> None:
+        nn.LeakyReLU.__init__(self, negative_slope, inplace)
+        ParamReLU.__init__(self, 1, negative_slope)
+
+    def forward(self, input):
+        return self.easy_forward(super().forward, input)
