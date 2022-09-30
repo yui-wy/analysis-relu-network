@@ -1,8 +1,7 @@
-from cgitb import reset
 from typing import List
+from torch import Tensor
 
 import torchays.modules as ann
-from torch import Tensor
 
 
 class TestResNet(ann.AysBaseModule):
@@ -65,7 +64,7 @@ class TestResNet(ann.AysBaseModule):
     def forward_graph_Layer(self, x: Tensor, layer=-1):
         assert layer >= 0, "'layer' must be greater than 0."
         out = self.linear1(x)
-        out = self.bn1(out)
+        out = self.norm1(out)
         if layer == 0:
             return out
         out = self.relu(out)
