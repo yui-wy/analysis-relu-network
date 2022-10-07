@@ -29,13 +29,13 @@ class TestResNet(ann.AysBaseModule):
     def _make_layers(self, first_features: int, layers: List[int]):
         self.linear_res = ann.AysLinear(first_features, layers[0])
         for i in range(self.num_layers-1):
-            self.add_module(f"linear_{i}_1", ann.AysLinear(layers[i], layers[i], bias=False))
+            self.add_module(f"linear_{i}_1", ann.AysLinear(layers[i], layers[i], bias=True))
             self.add_module(f"norm_{i}_1", self._norm_layer(layers[i]))
-            self.add_module(f"linear_{i}_2", ann.AysLinear(layers[i], layers[i+1], bias=False))
+            self.add_module(f"linear_{i}_2", ann.AysLinear(layers[i], layers[i+1], bias=True))
             self.add_module(f"norm_{i}_2", self._norm_layer(layers[i+1]))
             # downsample
             if layers[i] != layers[i+1]:
-                self.add_module(f"linear_{i}_d", ann.AysLinear(layers[i], layers[i+1], bias=False))
+                self.add_module(f"linear_{i}_d", ann.AysLinear(layers[i], layers[i+1], bias=True))
                 self.add_module(f"norm_{i}_d", self._norm_layer(layers[i+1]))
 
     def forward(self, x: Tensor):

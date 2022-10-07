@@ -16,12 +16,13 @@ class TestTNetLinear(ann.AysBaseModule):
         self.add_module("0", ann.AysLinear(in_features, nNum[0], bias=True))
         self.add_module(f"{0}_norm", self._norm_layer(nNum[0]))
         for i in range(self.numLayers-1):
-            self.add_module(f"{i+1}", ann.AysLinear(nNum[i], nNum[i+1], bias=False))
+            self.add_module(f"{i+1}", ann.AysLinear(nNum[i], nNum[i+1], bias=True))
             self.add_module(f"{i+1}_norm", self._norm_layer(nNum[i+1]))
         self.add_module(f"{self.numLayers}", ann.AysLinear(nNum[-1], n_classes, bias=True))
 
     def forward(self, x):
         x = self._modules['0'](x)
+        x = self._modules["0_norm"](x)
         x = self.relu(x)
         for i in range(1, self.numLayers):
             x = self._modules[f'{i}'](x)
