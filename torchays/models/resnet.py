@@ -34,8 +34,9 @@ class TestResNet(ann.AysBaseModule):
             self.add_module(f"linear_{i}_2", ann.AysLinear(layers[i], layers[i+1], bias=False))
             self.add_module(f"norm_{i}_2", self._norm_layer(layers[i+1]))
             # downsample
-            self.add_module(f"linear_{i}_d", ann.AysLinear(layers[i], layers[i+1], bias=False))
-            self.add_module(f"norm_{i}_d", self._norm_layer(layers[i+1]))
+            if layers[i] != layers[i+1]:
+                self.add_module(f"linear_{i}_d", ann.AysLinear(layers[i], layers[i+1], bias=False))
+                self.add_module(f"norm_{i}_d", self._norm_layer(layers[i+1]))
 
     def forward(self, x: Tensor):
         out = self.linear1(x)
@@ -51,8 +52,9 @@ class TestResNet(ann.AysBaseModule):
             out1 = self._modules[f"linear_{i}_2"](out1)
             out1 = self._modules[f"norm_{i}_2"](out1)
             # downsample
-            out = self._modules[f"linear_{i}_d"](out)
-            out = self._modules[f"norm_{i}_d"](out)
+            if self._modules.get(f"linear_{i}_d") != None and self._modules.get(f"norm_{i}_d") != None:
+                out = self._modules[f"linear_{i}_d"](out)
+                out = self._modules[f"norm_{i}_d"](out)
 
             out = self._forward_plus(out1, out)
             out = self.relu(out)
@@ -81,8 +83,9 @@ class TestResNet(ann.AysBaseModule):
             out1 = self._modules[f"linear_{i}_2"](out1)
             out1 = self._modules[f"norm_{i}_2"](out1)
             # downsample
-            out = self._modules[f"linear_{i}_d"](out)
-            out = self._modules[f"norm_{i}_d"](out)
+            if self._modules.get(f"linear_{i}_d") != None and self._modules.get(f"norm_{i}_d") != None:
+                out = self._modules[f"linear_{i}_d"](out)
+                out = self._modules[f"norm_{i}_d"](out)
 
             out = self._forward_plus(out1, out)
             # relu
