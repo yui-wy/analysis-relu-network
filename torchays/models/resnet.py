@@ -16,8 +16,8 @@ class TestResNet(ann.AysBaseModule):
             norm_layer=ann.AysBatchNorm1d,
     ):
         super(TestResNet, self).__init__()
-        self.num_layers = len(layers)
-        self.reLUNum = (self.num_layers-1) * 2 + 1
+        self.n_layers = len(layers)
+        self.n_relu = (self.n_layers-1) * 2 + 1
         self.relu = ann.AysReLU()
         self._norm_layer = norm_layer
         self.in_features = in_features
@@ -28,7 +28,7 @@ class TestResNet(ann.AysBaseModule):
 
     def _make_layers(self, first_features: int, layers: List[int]):
         self.linear_res = ann.AysLinear(first_features, layers[0])
-        for i in range(self.num_layers-1):
+        for i in range(self.n_layers-1):
             self.add_module(f"linear_{i}_1", ann.AysLinear(layers[i], layers[i], bias=True))
             self.add_module(f"norm_{i}_1", self._norm_layer(layers[i]))
             self.add_module(f"linear_{i}_2", ann.AysLinear(layers[i], layers[i+1], bias=True))
@@ -45,7 +45,7 @@ class TestResNet(ann.AysBaseModule):
         out = self.linear_res(out)
         # ================================
         # res
-        for i in range(self.num_layers-1):
+        for i in range(self.n_layers-1):
             out1 = self._modules[f"linear_{i}_1"](out)
             out1 = self._modules[f"norm_{i}_1"](out1)
             out1 = self.relu(out1)
@@ -73,7 +73,7 @@ class TestResNet(ann.AysBaseModule):
         out = self.linear_res(out)
         # ================================
         # res
-        for i in range(self.num_layers-1):
+        for i in range(self.n_layers-1):
             out1 = self._modules[f"linear_{i}_1"](out)
             out1 = self._modules[f"norm_{i}_1"](out1)
             # relu

@@ -170,7 +170,7 @@ def getRegion():
             net = net.to(device)
             acc = val_net(net, val_dataloader).cpu().numpy()
             print(f'Accuracy: {acc:.4f}')
-            regionNum = au.getAreaNum(net, 1., inputSize=(2,), countLayers=net.reLUNum, saveArea=True)
+            regionNum = au.getAreaNum(net, 1., inputSize=(2,), countLayers=net.n_relu, saveArea=True)
             funcs, areas, points = au.getAreaData()
             # draw fig
             drawReginImage = DrawReginImage(regionNum, funcs, areas, points, saveDir, net, n_classes)
