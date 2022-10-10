@@ -14,8 +14,10 @@ class TestResNet(ann.AysBaseModule):
             first_features: int = 32,
             n_classes: int = 2,
             norm_layer=ann.AysBatchNorm1d,
+            is_no_res: bool = False,
     ):
         super(TestResNet, self).__init__()
+        self._is_no_res = is_no_res
         self.n_layers = len(layers)
         self.n_relu = (self.n_layers-1) * 2 + 1
         self.relu = ann.AysReLU()
@@ -51,12 +53,15 @@ class TestResNet(ann.AysBaseModule):
             out1 = self.relu(out1)
             out1 = self._modules[f"linear_{i}_2"](out1)
             out1 = self._modules[f"norm_{i}_2"](out1)
-            # downsample
-            if self._modules.get(f"linear_{i}_d") != None and self._modules.get(f"norm_{i}_d") != None:
-                out = self._modules[f"linear_{i}_d"](out)
-                out = self._modules[f"norm_{i}_d"](out)
+            if self._is_no_res:
+                out = out1
+            else:
+                # downsample
+                if self._modules.get(f"linear_{i}_d") != None and self._modules.get(f"norm_{i}_d") != None:
+                    out = self._modules[f"linear_{i}_d"](out)
+                    out = self._modules[f"norm_{i}_d"](out)
 
-            out = self._forward_plus(out1, out)
+                out = self._forward_plus(out1, out)
             out = self.relu(out)
         # ================================
         out = self.last_linear(out)
@@ -82,12 +87,15 @@ class TestResNet(ann.AysBaseModule):
             out1 = self.relu(out1)
             out1 = self._modules[f"linear_{i}_2"](out1)
             out1 = self._modules[f"norm_{i}_2"](out1)
-            # downsample
-            if self._modules.get(f"linear_{i}_d") != None and self._modules.get(f"norm_{i}_d") != None:
-                out = self._modules[f"linear_{i}_d"](out)
-                out = self._modules[f"norm_{i}_d"](out)
+            if self._is_no_res:
+                out = out1
+            else:
+                # downsample
+                if self._modules.get(f"linear_{i}_d") != None and self._modules.get(f"norm_{i}_d") != None:
+                    out = self._modules[f"linear_{i}_d"](out)
+                    out = self._modules[f"norm_{i}_d"](out)
 
-            out = self._forward_plus(out1, out)
+                out = self._forward_plus(out1, out)
             # relu
             if layer == (i*2+2):
                 return out
