@@ -82,7 +82,7 @@ class TestResNet(ann.AysBaseModule):
             out1 = self._modules[f"linear_{i}_1"](out)
             out1 = self._modules[f"norm_{i}_1"](out1)
             # relu
-            if layer == (i*2+1):
+            if layer == (i*2+1): 
                 return out1
             out1 = self.relu(out1)
             out1 = self._modules[f"linear_{i}_2"](out1)

@@ -1,4 +1,3 @@
-import torch
 from PIL import Image
 from torchvision.datasets import cifar
 

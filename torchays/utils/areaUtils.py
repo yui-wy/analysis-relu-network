@@ -8,13 +8,6 @@ from scipy.optimize import minimize
 from torchays.modules.base import AysBaseModule
 from torchays.utils.minfunc import func, funcJac, conFunc, conFunc1, conJac, boundFun, boundJac, cfunc, jacCcfunc, ccfunc, jacCfunc
 
-# TODO: 使用递归来进行一种迭代算法。简单来说就是暴力搜索每种节点，然后继续向下搜索下一个区域的方式。
-# 搜索不到子节点就停止。不考虑Bound以外的数据，确保训练数据在一个bound以内。例如图像是每个像素点是（0-255）
-
-# 优化1：减少递归使用；x
-# 优化2：增加下一个区域的搜索，取消暴力循环历遍。（大幅度减少搜索时间）；√
-# 优化3：尝试区域内点的搜索方式，改进条件约束的计算方式，减少点计算时间；x
-
 
 class WapperArea(object):
     """
@@ -133,7 +126,13 @@ class AnalysisReLUNetUtils(object):
             cons.append(con)
         cons.extend(self.con)
         function = ccfunc(funcList[0])
-        res = minimize(function, point, method='SLSQP', constraints=cons, jac=jacCcfunc(funcList[0]), tol=1e-10, options={"maxiter": 100})
+        res = minimize(function,
+                       point,
+                       method='SLSQP',
+                       constraints=cons,
+                       jac=jacCcfunc(funcList[0]),
+                       tol=1e-10,
+                       options={"maxiter": 100})
         x, r = res.x[:-1], res.x[-1]
         return x, r
 
@@ -150,7 +149,9 @@ class AnalysisReLUNetUtils(object):
         # ==================================================
         r = np.random.uniform(0, self.bound)
         if layerNum == 0:
-            point = np.random.uniform(-self.bound, self.bound, [conFuncs[0].shape[0] - 1, ])
+            point = np.random.uniform(-self.bound, self.bound, [
+                conFuncs[0].shape[0] - 1,
+            ])
         point = np.append(point, r)
         NewPoint, r = self._calulateR(conFuncs, point)
         result = np.matmul(conFuncs[:, :-1], NewPoint.T) + conFuncs[:, -1]
@@ -161,16 +162,23 @@ class AnalysisReLUNetUtils(object):
         self.logger.info(f"Distance: {r}, Point: {NewPoint}")
         # ==================================================
         # Find the least linear functions to express a region.
-        cons = [{'type': 'ineq',
-                 'fun': conFunc1(conFuncs[i]),
-                 'jac': conJac(conFuncs[i]),
-                 } for i in range(conFuncs.shape[0])]
+        cons = [{
+            'type': 'ineq',
+            'fun': conFunc1(conFuncs[i]),
+            'jac': conJac(conFuncs[i]),
+        } for i in range(conFuncs.shape[0])]
         cons.extend(self.con)
         cAreaSign = torch.zeros_like(cArea)
         for i in range(conFuncs.shape[0]):
             function = func(conFuncs[i])
             cons[i]['fun'] = conFunc(conFuncs[i])
-            res = minimize(function, NewPoint, method='SLSQP', constraints=cons, jac=funcJac(conFuncs[i]), tol=1e-20, options={"maxiter": 100})
+            res = minimize(function,
+                           NewPoint,
+                           method='SLSQP',
+                           constraints=cons,
+                           jac=funcJac(conFuncs[i]),
+                           tol=1e-20,
+                           options={"maxiter": 100})
             # print(i, res.fun, cArea.shape[0])
             if res.fun > 1e-15:
                 continue
@@ -207,14 +215,20 @@ class AnalysisReLUNetUtils(object):
         funcs, points = [], []
         cons = [{
             'type': 'ineq',
-                'fun': conFunc(conFuncs[i]),
-                'jac': conJac(conFuncs[i]),
-                } for i in range(conFuncs.shape[0])]
+            'fun': conFunc(conFuncs[i]),
+            'jac': conJac(conFuncs[i]),
+        } for i in range(conFuncs.shape[0])]
         cons.extend(self.con)
         # Is the linear function though the area(Region).
         for i in range(funcList.shape[0]):
             function = func(funcList[i])
-            res = minimize(function, point, method='SLSQP', constraints=cons, jac=funcJac(funcList[i]), tol=1e-20, options={"maxiter": 100})
+            res = minimize(function,
+                           point,
+                           method='SLSQP',
+                           constraints=cons,
+                           jac=funcJac(funcList[i]),
+                           tol=1e-20,
+                           options={"maxiter": 100})
             if res.fun > 1e-16:
                 continue
             funcs.append(torch.from_numpy(funcList[i]))
@@ -250,7 +264,8 @@ class AnalysisReLUNetUtils(object):
             # Regist some areas in wapperArea for iterate.
             layerAreas.registAreas(pointAreas)
             for cArea in layerAreas:
-                nextPoint, nextFuncList, nextArea, cAreaSign, funcPoints, isExist = self._calulateAreaPoint(cFuncList, cArea, pFuncList, pArea, point, layerNum)
+                nextPoint, nextFuncList, nextArea, cAreaSign, funcPoints, isExist = self._calulateAreaPoint(
+                    cFuncList, cArea, pFuncList, pArea, point, layerNum)
                 if not isExist and (nextFuncList is None):
                     continue
                 # Add the area to prevent counting again.
@@ -298,10 +313,11 @@ class AnalysisReLUNetUtils(object):
             return self._updataFunc(func)
         return func
 
-    def getAreaNum(self, net: AysBaseModule,
+    def getAreaNum(self,
+                   net: AysBaseModule,
                    bound: float = 1.0,
                    countLayers: int = -1,
-                   inputSize: tuple = (2,),
+                   inputSize: tuple = (2, ),
                    pFuncList: torch.Tensor = None,
                    pArea: torch.Tensor = None,
                    saveArea: bool = False):
@@ -332,10 +348,10 @@ class AnalysisReLUNetUtils(object):
             point = self._calulateAreaPoint(pFuncList, pArea)
         else:
             size_prod = torch.Size(inputSize).numel()
-            pFuncList1 = torch.cat([torch.eye(size_prod), torch.zeros(size_prod, 1)-self.bound], dim=1)  # < 0
-            pFuncList2 = torch.cat([torch.eye(size_prod), torch.zeros(size_prod, 1)+self.bound], dim=1)  # >=0
+            pFuncList1 = torch.cat([torch.eye(size_prod), torch.zeros(size_prod, 1) - self.bound], dim=1)  # < 0
+            pFuncList2 = torch.cat([torch.eye(size_prod), torch.zeros(size_prod, 1) + self.bound], dim=1)  # >=0
             pFuncList = torch.cat([pFuncList1, pFuncList2], dim=0)
-            pArea = torch.ones(size_prod*2, dtype=torch.int8)
+            pArea = torch.ones(size_prod * 2, dtype=torch.int8)
             pArea[0:size_prod] = -1
             point = np.zeros(*inputSize)
         regionNum = self._getLayerAreaNum(point, pFuncList, pArea, 0)
@@ -343,9 +359,11 @@ class AnalysisReLUNetUtils(object):
         return regionNum
 
     def initCon(self):
-        self.con = [{'type': 'ineq',
-                     'fun': boundFun,
-                     'jac': boundJac, }]
+        self.con = [{
+            'type': 'ineq',
+            'fun': boundFun,
+            'jac': boundJac,
+        }]
 
     def _defaultRegist(self, point, funcList, area):
         return
