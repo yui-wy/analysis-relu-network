@@ -3,7 +3,8 @@ from torchays.modules import base
 
 
 class AysSequential(nn.Sequential, base.AysBaseModule):
-    """ This module does not test. It may have some bug. """
+    """This module does not test. It may have some bug."""
+
     __doc__ = nn.Sequential.__doc__
 
     def forward(self, input):

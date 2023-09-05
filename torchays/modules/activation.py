@@ -16,15 +16,11 @@ class ParamReLU(base.AysBaseModule):
         input_size = self._get_input_size(x, weight_graph)
         graph_size = weight_graph.size()
         # ((*x.shape)), (*input_size)), ((*x.shape))
-        wg, bg = torch.zeros(graph_size, device=x.device), torch.zeros(
-            *x.size(), device=x.device)
+        wg, bg = torch.zeros(graph_size, device=x.device), torch.zeros(*x.size(), device=x.device)
         active_slope = torch.ones((1), device=x.device) * self._active_slope
-        negative_slope = torch.ones(
-            (1), device=x.device) * self._negative_slope
-        x_relu_hot = torch.where(
-            x > 0, active_slope, negative_slope)
-        wg += x_relu_hot.view(*x_relu_hot.size(), *
-                              self._get_size_to_one(input_size))
+        negative_slope = torch.ones((1), device=x.device) * self._negative_slope
+        x_relu_hot = torch.where(x > 0, active_slope, negative_slope)
+        wg += x_relu_hot.view(*x_relu_hot.size(), *self._get_size_to_one(input_size))
         bg += x_relu_hot
         if weight_graph is None:
             weight_graph, bias_graph = 1, 0

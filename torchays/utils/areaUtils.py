@@ -58,7 +58,7 @@ class WapperArea(object):
     def checkArea(self, area: torch.Tensor):
         try:
             a = ((self.sRSign.abs() * area) - self.sRSign).abs().sum(dim=1)
-            return (0 in a)
+            return 0 in a
         except:
             return False
 
@@ -112,13 +112,13 @@ class AnalysisReLUNetUtils(object):
     def _calulateR(self, funcList, point):
         """
         Calculate the max radius of the insphere in the region to make the radius less than the distance of the insphere center to the all functions
-        which can express a liner region. 
+        which can express a liner region.
 
         maximizing the following function.
         * max_{x,r} r
         * s.t.  (AX+B-r||A|| >= 0)
 
-        To minimize: 
+        To minimize:
         * min_{x,r} (-r)
         * s.t.  (AX+B-r||A|| >= 0)
         """
@@ -150,28 +150,44 @@ class AnalysisReLUNetUtils(object):
         # ==================================================
         r = np.random.uniform(0, self.bound)
         if layerNum == 0:
-            point = np.random.uniform(-self.bound, self.bound, [conFuncs[0].shape[0] - 1, ])
+            point = np.random.uniform(
+                -self.bound,
+                self.bound,
+                [
+                    conFuncs[0].shape[0] - 1,
+                ],
+            )
         point = np.append(point, r)
-        NewPoint, r = self._calulateR(conFuncs, point)
-        result = np.matmul(conFuncs[:, :-1], NewPoint.T) + conFuncs[:, -1]
+        newPoint, r = self._calulateR(conFuncs, point)
+        result = np.matmul(conFuncs[:, :-1], newPoint.T) + conFuncs[:, -1]
         result = np.where(result >= -1e-10, 1, 0)
         if not np.array_equal(result, conArea) or r < 10e-7 or r > self.bound:
-            return None, None, None, None, None, False,
+            return (
+                None,
+                None,
+                None,
+                None,
+                None,
+                False,
+            )
         self.logger.info(f"-----------point Layer: {layerNum}--------------")
-        self.logger.info(f"Distance: {r}, Point: {NewPoint}")
+        self.logger.info(f"Distance: {r}, Point: {newPoint}")
         # ==================================================
         # Find the least linear functions to express a region.
-        cons = [{'type': 'ineq',
-                 'fun': conFunc1(conFuncs[i]),
-                 'jac': conJac(conFuncs[i]),
-                 } for i in range(conFuncs.shape[0])]
+        cons = [
+            {
+                'type': 'ineq',
+                'fun': conFunc1(conFuncs[i]),
+                'jac': conJac(conFuncs[i]),
+            }
+            for i in range(conFuncs.shape[0])
+        ]
         cons.extend(self.con)
         cAreaSign = torch.zeros_like(cArea)
         for i in range(conFuncs.shape[0]):
             function = func(conFuncs[i])
             cons[i]['fun'] = conFunc(conFuncs[i])
-            res = minimize(function, NewPoint, method='SLSQP', constraints=cons, jac=funcJac(conFuncs[i]), tol=1e-20, options={"maxiter": 100})
-            # print(i, res.fun, cArea.shape[0])
+            res = minimize(function, newPoint, method='SLSQP', constraints=cons, jac=funcJac(conFuncs[i]), tol=1e-20, options={"maxiter": 100})
             if res.fun > 1e-15:
                 continue
             nextFuncList.append(torch.from_numpy(funcList[i]))
@@ -194,7 +210,7 @@ class AnalysisReLUNetUtils(object):
         funcPoints = torch.stack(funcPoints)
         nextArea = torch.tensor(nextArea, dtype=torch.int8)
         self.logger.info(f"Smallest function size: {nextFuncList.size()};")
-        return NewPoint, nextFuncList, nextArea, cAreaSign.type(torch.int8), funcPoints, True
+        return newPoint, nextFuncList, nextArea, cAreaSign.type(torch.int8), funcPoints, True
 
     def _calculateFunc(self, funcList, pFuncList, pArea, point):
         """
@@ -205,11 +221,14 @@ class AnalysisReLUNetUtils(object):
         conFuncs = pArea.view(-1, 1) * pFuncList
         conFuncs, funcList = conFuncs.numpy(), funcList.numpy()
         funcs, points = [], []
-        cons = [{
-            'type': 'ineq',
+        cons = [
+            {
+                'type': 'ineq',
                 'fun': conFunc(conFuncs[i]),
                 'jac': conJac(conFuncs[i]),
-                } for i in range(conFuncs.shape[0])]
+            }
+            for i in range(conFuncs.shape[0])
+        ]
         cons.extend(self.con)
         # Is the linear function though the area(Region).
         for i in range(funcList.shape[0]):
@@ -250,7 +269,9 @@ class AnalysisReLUNetUtils(object):
             # Regist some areas in wapperArea for iterate.
             layerAreas.registAreas(pointAreas)
             for cArea in layerAreas:
-                nextPoint, nextFuncList, nextArea, cAreaSign, funcPoints, isExist = self._calulateAreaPoint(cFuncList, cArea, pFuncList, pArea, point, layerNum)
+                nextPoint, nextFuncList, nextArea, cAreaSign, funcPoints, isExist = self._calulateAreaPoint(
+                    cFuncList, cArea, pFuncList, pArea, point, layerNum
+                )
                 if not isExist and (nextFuncList is None):
                     continue
                 # Add the area to prevent counting again.
@@ -268,7 +289,7 @@ class AnalysisReLUNetUtils(object):
         return area
 
     def _wapperGetLayerAreaNum(self, point, funcList, area, layerNum):
-        isLast = (layerNum == self.countLayers)
+        isLast = layerNum == self.countLayers
         nextLayerNum = 1 + layerNum
         if isLast:
             num = 1
@@ -280,31 +301,34 @@ class AnalysisReLUNetUtils(object):
     def _getLayerAreaNum(self, point, pfuncList, pArea, layerNum):
         # Get the list of the linear functions for DNN.
         cFuncList = self._getFuncList(point, layerNum).cpu()
-        # 更新, 不让其太小
-        cFuncList = self._updateFuncList(cFuncList)
+        # scale the fanctions
+        cFuncList = self._scaleFuncList(cFuncList)
         # Get the region number of one layer.
         layerAreaNum = self._getLayerArea(cFuncList, pfuncList, pArea, layerNum, point)
         return layerAreaNum
 
-    def _updateFuncList(self, funcList):
+    def _scaleFuncList(self, funcList):
         for i in range(funcList.shape[0]):
-            funcList[i] = self._updataFunc(funcList[i])
+            funcList[i] = self._scaleFunc(funcList[i])
         return funcList
 
-    def _updataFunc(self, func):
-        a, _ = func.abs().max(dim=0)
-        if a < 0.001:
-            func *= 1000
-            return self._updataFunc(func)
+    def _scaleFunc(self, func):
+        v, _ = func.abs().max(dim=0)
+        while v < 1:
+            func *= 10
+            v *= 10
         return func
 
-    def getAreaNum(self, net: AysBaseModule,
-                   bound: float = 1.0,
-                   countLayers: int = -1,
-                   inputSize: tuple = (2,),
-                   pFuncList: torch.Tensor = None,
-                   pArea: torch.Tensor = None,
-                   saveArea: bool = False):
+    def getAreaNum(
+        self,
+        net: AysBaseModule,
+        bound: float = 1.0,
+        countLayers: int = -1,
+        inputSize: tuple = (2,),
+        pFuncList: torch.Tensor = None,
+        pArea: torch.Tensor = None,
+        isSaveArea: bool = False,
+    ):
         """
         目前只支持方形的输入空间画图，需要修改。
 
@@ -323,29 +347,39 @@ class AnalysisReLUNetUtils(object):
         assert countLayers != -1, "countLayers must >= 0."
         assert bound > 0, "Please set the bound > 0."
         self.logger.info("Start Get region number...")
-        self.net, self.countLayers, self.bound, self.saveArea = net.to(self.device), countLayers, bound, saveArea
+        self.net, self.countLayers, self.bound, self.isSaveArea = net.to(self.device), countLayers, bound, isSaveArea
         self.net.eval()
-        self.regist = self._updateAreaListRegist if saveArea else self._defaultRegist
-        self.areaFuncs, self.areas, self.points = [], [], []
-        self.initCon()
+        self._initRegist()._initCondition()
         if (pFuncList is not None) and (pArea is not None):
             point = self._calulateAreaPoint(pFuncList, pArea)
         else:
             size_prod = torch.Size(inputSize).numel()
-            pFuncList1 = torch.cat([torch.eye(size_prod), torch.zeros(size_prod, 1)-self.bound], dim=1)  # < 0
-            pFuncList2 = torch.cat([torch.eye(size_prod), torch.zeros(size_prod, 1)+self.bound], dim=1)  # >=0
+            pFuncList1 = torch.cat([torch.eye(size_prod), torch.zeros(size_prod, 1) - self.bound], dim=1)  # < 0
+            pFuncList2 = torch.cat([torch.eye(size_prod), torch.zeros(size_prod, 1) + self.bound], dim=1)  # >=0
             pFuncList = torch.cat([pFuncList1, pFuncList2], dim=0)
-            pArea = torch.ones(size_prod*2, dtype=torch.int8)
+            pArea = torch.ones(size_prod * 2, dtype=torch.int8)
             pArea[0:size_prod] = -1
             point = np.zeros(*inputSize)
         regionNum = self._getLayerAreaNum(point, pFuncList, pArea, 0)
         self.logger.info(f"regionNum: {regionNum}")
         return regionNum
 
-    def initCon(self):
-        self.con = [{'type': 'ineq',
-                     'fun': boundFun,
-                     'jac': boundJac, }]
+    def _initCondition(self):
+        self.con = [
+            {
+                'type': 'ineq',
+                'fun': boundFun,
+                'jac': boundJac,
+            }
+        ]
+        return self
+
+    def _initRegist(self):
+        self.regist = self._defaultRegist
+        if self.isSaveArea:
+            self.regist = self._updateAreaListRegist
+            self.areaFuncs, self.areas, self.points = [], [], []
+        return self
 
     def _defaultRegist(self, point, funcList, area):
         return
@@ -362,5 +396,5 @@ class AnalysisReLUNetUtils(object):
             areas: [tensor,];
             points: [np.array,];
         """
-        assert self.saveArea, "Not save some area infomation"
+        assert self.isSaveArea, "Not save some area infomation"
         return self.areaFuncs, self.areas, self.points
