@@ -47,7 +47,7 @@ class TestNet(nn.AysBaseModule):
 net = TestNet((2,)).to(device)
 
 au = areaUtils.AnalysisReLUNetUtils(device=device)
-num = au.getAreaNum(net, 1, countLayers=1, saveArea=True)
+num = au.getAreaNum(net, 1, countLayers=1, isSaveArea=True)
 funcs, areas, points = au.getAreaData()
 
 ax = plt.subplot()
@@ -55,11 +55,11 @@ for i in range(num):
     #  to <= 0
     func, area, point = funcs[i], areas[i], points[i]
     # print(f"Func: {func}, area: {area}, point: {point}")
-    func = - area.view(-1, 1) * func
+    func = -area.view(-1, 1) * func
     func = func.numpy()
     A, B = func[:, :-1], -func[:, -1]
     p = pc.Polytope(A, B)
-    p.plot(ax, color=np.random.uniform(0.0, 0.95, 3), alpha=1., linestyle='-', linewidth=0.2, edgecolor='w')
+    p.plot(ax, color=np.random.uniform(0.0, 0.95, 3), alpha=1.0, linestyle='-', linewidth=0.2, edgecolor='w')
 
 plt.xlim(-1, 1)
 plt.ylim(-1, 1)

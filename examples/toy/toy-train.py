@@ -101,7 +101,15 @@ def getDataSet(setName, n_sample, noise, random_state, data_path):
         n_classes = 2
     if setName[:6] == "random":
         x = np.random.uniform(-1, 1, (n_sample, 2))
-        y = np.sign(np.random.uniform(-1, 1, [n_sample, ]))
+        y = np.sign(
+            np.random.uniform(
+                -1,
+                1,
+                [
+                    n_sample,
+                ],
+            )
+        )
         y = (np.abs(y) + y) / 2
         isNorm = False
         n_classes = 2
@@ -137,7 +145,7 @@ def train():
             optim.step()
             acc = accuracy(x, y) / x.size(0)
 
-            if (epoch+1) == 1 and (j in steps):
+            if (epoch + 1) == 1 and (j in steps):
                 net.val()
                 idx = steps.index(j)
                 torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_{save_step[idx]}.pth'))
@@ -166,11 +174,11 @@ def getRegion():
                 os.makedirs(saveDir)
             au.logger = getLogger(saveDir, f"region-{os.path.splitext(modelName)[0]}")
             modelPath = os.path.join(MODEL_DIR, modelName)
-            net.load_state_dict(torch.load(modelPath,  map_location='cpu'))
+            net.load_state_dict(torch.load(modelPath, map_location='cpu'))
             net = net.to(device)
             acc = val_net(net, val_dataloader).cpu().numpy()
             print(f'Accuracy: {acc:.4f}')
-            regionNum = au.getAreaNum(net, 1., inputSize=(2,), countLayers=net.n_relu, saveArea=True)
+            regionNum = au.getAreaNum(net, 1.0, inputSize=(2,), countLayers=net.n_relu, isSaveArea=True)
             funcs, areas, points = au.getAreaData()
             # draw fig
             drawReginImage = DrawReginImage(regionNum, funcs, areas, points, saveDir, net, n_classes)
@@ -199,7 +207,7 @@ def getLogger(saveDir, loggerName):
     return logger
 
 
-class DrawReginImage():
+class DrawReginImage:
     def __init__(self, regionNum, funcs, areas, points, saveDir, net: AysBaseModule, n_classes=2, minBound=-1, maxBound=1) -> None:
         self.regionNum = regionNum
         self.funcs = funcs
@@ -224,7 +232,7 @@ class DrawReginImage():
             func = func.numpy()
             A, B = func[:, :-1], -func[:, -1]
             p = pc.Polytope(A, B)
-            p.plot(ax, color=np.random.uniform(0.0, 0.95, 3), alpha=1., linestyle='-', linewidth=0.01, edgecolor='w')
+            p.plot(ax, color=np.random.uniform(0.0, 0.95, 3), alpha=1.0, linestyle='-', linewidth=0.01, edgecolor='w')
         ax.set_xlim(self.minBound, self.maxBound)
         ax.set_ylim(self.minBound, self.maxBound)
         plt.savefig(os.path.join(self.saveDir, fileName))
@@ -257,13 +265,13 @@ class DrawReginImage():
         num = 1000
         data = self.__hot_data(num).float()
         result = self.net(data).softmax(dim=1)
-        result = ((result - 1/self.n_classes) / (1 - 1/self.n_classes))
+        result = (result - 1 / self.n_classes) / (1 - 1 / self.n_classes)
         result, maxIdx = torch.max(result, dim=1)
         result, maxIdx = result.cpu().numpy(), maxIdx.cpu().numpy()
         result_alpha, result_color = np.empty((num, num)), np.empty((num, num))
         for i in range(num):
-            result_color[num-1-i] = maxIdx[i*num:(i+1)*num]
-            result_alpha[num-1-i] = result[i*num:(i+1)*num]
+            result_color[num - 1 - i] = maxIdx[i * num : (i + 1) * num]
+            result_alpha[num - 1 - i] = result[i * num : (i + 1) * num]
         cmap = matplotlib.colors.ListedColormap(COLOR, name="Region")
         return ax.imshow(
             result_color,

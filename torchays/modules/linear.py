@@ -9,7 +9,7 @@ class AysLinear(nn.Linear, base.AysBaseModule):
     def forward(self, input):
         return self.easy_forward(super().forward, input)
 
-    def forward_graph(self, x, weight_graph=None,  bias_graph=None):
+    def forward_graph(self, x, weight_graph=None, bias_graph=None):
         """
         Analyzing linear \n
         graph_size: (n, out_feature, (*input_size)))

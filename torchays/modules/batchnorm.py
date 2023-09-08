@@ -4,11 +4,10 @@ from torchays.modules import base
 
 
 class _AysBatchNorm(nn.modules.batchnorm._BatchNorm, base.AysBaseModule):
-
     def forward(self, input):
         return self.easy_forward(super().forward, input)
 
-    def forward_graph(self, x, weight_graph=None,  bias_graph=None):
+    def forward_graph(self, x, weight_graph=None, bias_graph=None):
         """
         Analyzing BatchNorm2d \n
         track_running_stats = True->Using saving var and mean.
@@ -43,13 +42,13 @@ class AysBatchNormNone(_AysBatchNorm):
     def forward_graph(self, x, weight_graph=None, bias_graph=None):
         return weight_graph, bias_graph
 
+
 class AysBatchNorm1d(_AysBatchNorm):
     __doc__ = nn.BatchNorm1d.__doc__
 
     def _check_input_dim(self, input):
         if input.dim() != 2 and input.dim() != 3:
-            raise ValueError('expected 2D or 3D input (got {}D input)'
-                             .format(input.dim()))
+            raise ValueError('expected 2D or 3D input (got {}D input)'.format(input.dim()))
 
 
 class AysBatchNorm2d(_AysBatchNorm):
@@ -57,8 +56,7 @@ class AysBatchNorm2d(_AysBatchNorm):
 
     def _check_input_dim(self, input):
         if input.dim() != 4:
-            raise ValueError('expected 4D input (got {}D input)'
-                             .format(input.dim()))
+            raise ValueError('expected 4D input (got {}D input)'.format(input.dim()))
 
 
 class AysBatchNorm3d(_AysBatchNorm):
@@ -66,5 +64,4 @@ class AysBatchNorm3d(_AysBatchNorm):
 
     def _check_input_dim(self, input):
         if input.dim() != 5:
-            raise ValueError('expected 5D input (got {}D input)'
-                             .format(input.dim()))
+            raise ValueError('expected 5D input (got {}D input)'.format(input.dim()))

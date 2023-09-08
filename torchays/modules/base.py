@@ -26,7 +26,7 @@ class AysBaseModule(nn.Module):
         return torch.Size(map(lambda x: int(x / x), size))
 
     def _get_input_size(self, x, weight_graph):
-        return x.size()[1:] if weight_graph is None else weight_graph.size()[len(x.size()):]
+        return x.size()[1:] if weight_graph is None else weight_graph.size()[len(x.size()) :]
 
     def _forward_graph_unimplemented(self, *input, weight_graph: Tensor = None, bias_graph: Tensor = None):
         raise NotImplementedError
@@ -44,7 +44,7 @@ class AysBaseModule(nn.Module):
     forward_graph: Callable[..., Any] = _forward_graph_unimplemented
 
     def train(self, mode: bool = True):
-        self.graphing = (not mode)
+        self.graphing = not mode
         self.training = mode
         for module in self.children():
             if isinstance(module, AysBaseModule):
@@ -55,7 +55,7 @@ class AysBaseModule(nn.Module):
         self.train(False)
 
     def val(self):
-        """ training = False, graphing = False """
+        """training = False, graphing = False"""
         self.training = False
         self.graphing = False
         for module in self.children():
@@ -64,7 +64,7 @@ class AysBaseModule(nn.Module):
         return self
 
     def get_input(self, input):
-        """  
+        """
         If 'graphing' is True, using this function to get the input.
         """
 
@@ -79,7 +79,7 @@ class AysBaseModule(nn.Module):
         return input[:-1], input[-1]
 
     def get_graph(self, *args, **kwargs):
-        """  
+        """
         If the results of "forward_graph" is "weight_graph, bias_graph", you can use this function to wapper the graph to a 'dict'.
 
         return:
@@ -95,7 +95,7 @@ class AysBaseModule(nn.Module):
         }
 
     def easy_forward(self, function: Callable[..., Any], input):
-        """  
+        """
         This function uses the "forward_graph", if self.graphing is True.
 
         args:
