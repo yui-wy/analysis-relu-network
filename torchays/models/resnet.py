@@ -1,44 +1,51 @@
 from typing import List
+
 from torch import Tensor
 
-import torchays.modules as ann
+import torchays.modules as ays
 
 
-class TestResNet(ann.AysBaseModule):
-    """ Not cnn, use linear. """
+class TestResNet(ays.BaseModule):
+    """Not cnn, use linear."""
 
     def __init__(
-            self,
-            in_features: int,
-            layers: List[int],
-            first_features: int = 32,
-            n_classes: int = 2,
-            norm_layer=ann.AysBatchNorm1d,
-            is_no_res: bool = False,
+        self,
+        in_features: int,
+        layers: List[int],
+        first_features: int = 32,
+        n_classes: int = 2,
+        norm_layer=ays.BatchNorm1d,
+        is_no_res: bool = False,
     ):
         super(TestResNet, self).__init__()
         self._is_no_res = is_no_res
         self.n_layers = len(layers)
-        self.n_relu = (self.n_layers-1) * 2 + 1
-        self.relu = ann.AysReLU()
+        self.n_relu = (self.n_layers - 1) * 2 + 1
+        self.relu = ays.ReLU()
         self._norm_layer = norm_layer
         self.in_features = in_features
-        self.linear1 = ann.AysLinear(in_features, first_features)
+        self.linear1 = ays.Linear(in_features, first_features)
         self.norm1 = self._norm_layer(first_features)
-        self.last_linear = ann.AysLinear(layers[-1], n_classes)
+        self.last_linear = ays.Linear(layers[-1], n_classes)
         self._make_layers(first_features, layers)
 
     def _make_layers(self, first_features: int, layers: List[int]):
-        self.linear_res = ann.AysLinear(first_features, layers[0])
-        for i in range(self.n_layers-1):
-            self.add_module(f"linear_{i}_1", ann.AysLinear(layers[i], layers[i], bias=True))
+        self.linear_res = ays.Linear(first_features, layers[0])
+        for i in range(self.n_layers - 1):
+            self.add_module(
+                f"linear_{i}_1", ays.Linear(layers[i], layers[i], bias=True)
+            )
             self.add_module(f"norm_{i}_1", self._norm_layer(layers[i]))
-            self.add_module(f"linear_{i}_2", ann.AysLinear(layers[i], layers[i+1], bias=True))
-            self.add_module(f"norm_{i}_2", self._norm_layer(layers[i+1]))
+            self.add_module(
+                f"linear_{i}_2", ays.Linear(layers[i], layers[i + 1], bias=True)
+            )
+            self.add_module(f"norm_{i}_2", self._norm_layer(layers[i + 1]))
             # downsample
-            if layers[i] != layers[i+1]:
-                self.add_module(f"linear_{i}_d", ann.AysLinear(layers[i], layers[i+1], bias=True))
-                self.add_module(f"norm_{i}_d", self._norm_layer(layers[i+1]))
+            if layers[i] != layers[i + 1]:
+                self.add_module(
+                    f"linear_{i}_d", ays.Linear(layers[i], layers[i + 1], bias=True)
+                )
+                self.add_module(f"norm_{i}_d", self._norm_layer(layers[i + 1]))
 
     def forward(self, x: Tensor):
         out = self.linear1(x)
@@ -47,7 +54,7 @@ class TestResNet(ann.AysBaseModule):
         out = self.linear_res(out)
         # ================================
         # res
-        for i in range(self.n_layers-1):
+        for i in range(self.n_layers - 1):
             out1 = self._modules[f"linear_{i}_1"](out)
             out1 = self._modules[f"norm_{i}_1"](out1)
             out1 = self.relu(out1)
@@ -57,7 +64,10 @@ class TestResNet(ann.AysBaseModule):
                 out = out1
             else:
                 # downsample
-                if self._modules.get(f"linear_{i}_d") != None and self._modules.get(f"norm_{i}_d") != None:
+                if (
+                    self._modules.get(f"linear_{i}_d") != None
+                    and self._modules.get(f"norm_{i}_d") != None
+                ):
                     out = self._modules[f"linear_{i}_d"](out)
                     out = self._modules[f"norm_{i}_d"](out)
 
@@ -78,11 +88,11 @@ class TestResNet(ann.AysBaseModule):
         out = self.linear_res(out)
         # ================================
         # res
-        for i in range(self.n_layers-1):
+        for i in range(self.n_layers - 1):
             out1 = self._modules[f"linear_{i}_1"](out)
             out1 = self._modules[f"norm_{i}_1"](out1)
             # relu
-            if layer == (i*2+1): 
+            if layer == (i * 2 + 1):
                 return out1
             out1 = self.relu(out1)
             out1 = self._modules[f"linear_{i}_2"](out1)
@@ -91,13 +101,16 @@ class TestResNet(ann.AysBaseModule):
                 out = out1
             else:
                 # downsample
-                if self._modules.get(f"linear_{i}_d") != None and self._modules.get(f"norm_{i}_d") != None:
+                if (
+                    self._modules.get(f"linear_{i}_d") != None
+                    and self._modules.get(f"norm_{i}_d") != None
+                ):
                     out = self._modules[f"linear_{i}_d"](out)
                     out = self._modules[f"norm_{i}_d"](out)
 
                 out = self._forward_plus(out1, out)
             # relu
-            if layer == (i*2+2):
+            if layer == (i * 2 + 2):
                 return out
             out = self.relu(out)
         # ================================
@@ -107,8 +120,8 @@ class TestResNet(ann.AysBaseModule):
 
     def _forward_plus(self, input, identity):
         if self.graphing:
-            x, graph = self.get_input(input)
-            id_x, id_graph = self.get_input(identity)
+            x, graph = self._get_input(input)
+            id_x, id_graph = self._get_input(identity)
             o1 = x[0] + id_x[0]
             o2 = graph["weight_graph"] + id_graph["weight_graph"]
             o3 = graph["bias_graph"] + id_graph["bias_graph"]

@@ -1,24 +1,27 @@
-import torchays.modules as ann
+import torchays.modules as ays
 
 
-class TestTNetLinear(ann.AysBaseModule):
+class TestTNetLinear(ays.BaseModule):
     def __init__(
-            self,
-            in_features=2,
-            layers: tuple = [32, 32, 32],
-            n_classes=2,
-            norm_layer=ann.AysBatchNorm1d):
+        self,
+        in_features=2,
+        layers: tuple = [32, 32, 32],
+        n_classes=2,
+        norm_layer=ays.BatchNorm1d,
+    ):
         super(TestTNetLinear, self).__init__()
         self.n_layers = len(layers)
-        self.n_relu = self.n_layers-1
-        self.relu = ann.AysReLU()
+        self.n_relu = self.n_layers - 1
+        self.relu = ays.ReLU()
         self._norm_layer = norm_layer
-        self.add_module("0", ann.AysLinear(in_features, layers[0], bias=True))
+        self.add_module("0", ays.Linear(in_features, layers[0], bias=True))
         self.add_module(f"{0}_norm", self._norm_layer(layers[0]))
-        for i in range(self.n_layers-1):
-            self.add_module(f"{i+1}", ann.AysLinear(layers[i], layers[i+1], bias=True))
-            self.add_module(f"{i+1}_norm", self._norm_layer(layers[i+1]))
-        self.add_module(f"{self.n_layers}", ann.AysLinear(layers[-1], n_classes, bias=True))
+        for i in range(self.n_layers - 1):
+            self.add_module(f"{i+1}", ays.Linear(layers[i], layers[i + 1], bias=True))
+            self.add_module(f"{i+1}_norm", self._norm_layer(layers[i + 1]))
+        self.add_module(
+            f"{self.n_layers}", ays.Linear(layers[-1], n_classes, bias=True)
+        )
 
     def forward(self, x):
         x = self._modules['0'](x)

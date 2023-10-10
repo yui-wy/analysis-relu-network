@@ -2,23 +2,26 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polytope as pc
 import torch
-from torchays import modules as nn
+
+import torchays.modules as ays
 from torchays.utils import areaUtils
 
 GPU_ID = 0
-device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
+device = (
+    torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
+)
 torch.manual_seed(5)
 torch.cuda.manual_seed_all(5)
 np.random.seed(5)
 
 
-class TestNet(nn.AysBaseModule):
+class TestNet(ays.BaseModule):
     def __init__(self, input_size=(2,)):
         super(TestNet, self).__init__()
-        self.relu = nn.AysReLU()
-        self.fc1 = nn.AysLinear(input_size[0], 16, bias=True)
-        self.fc2 = nn.AysLinear(16, 16, bias=True)
-        self.fc4 = nn.AysLinear(16, 3, bias=True)
+        self.relu = ays.ReLU()
+        self.fc1 = ays.Linear(input_size[0], 16, bias=True)
+        self.fc2 = ays.Linear(16, 16, bias=True)
+        self.fc4 = ays.Linear(16, 3, bias=True)
 
     def forward(self, x):
         x = self.fc1(x)
@@ -59,7 +62,14 @@ for i in range(num):
     func = func.numpy()
     A, B = func[:, :-1], -func[:, -1]
     p = pc.Polytope(A, B)
-    p.plot(ax, color=np.random.uniform(0.0, 0.95, 3), alpha=1.0, linestyle='-', linewidth=0.2, edgecolor='w')
+    p.plot(
+        ax,
+        color=np.random.uniform(0.0, 0.95, 3),
+        alpha=1.0,
+        linestyle='-',
+        linewidth=0.2,
+        edgecolor='w',
+    )
 
 plt.xlim(-1, 1)
 plt.ylim(-1, 1)

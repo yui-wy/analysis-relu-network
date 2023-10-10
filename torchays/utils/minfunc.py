@@ -17,7 +17,12 @@ def funcJac(function):
     """{2a_i(aX+b);i in (0, n)}"""
 
     def xx(x):
-        return np.array([((np.matmul(x, function[:-1]) + function[-1]) * function[i] * 2) for i in range(function.shape[0] - 1)])
+        return np.array(
+            [
+                ((np.matmul(x, function[:-1]) + function[-1]) * function[i] * 2)
+                for i in range(function.shape[0] - 1)
+            ]
+        )
 
     return xx
 

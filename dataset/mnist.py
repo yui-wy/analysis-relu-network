@@ -1,4 +1,5 @@
 from typing import Any, Tuple
+
 from PIL import Image
 from torchvision.datasets import mnist
 

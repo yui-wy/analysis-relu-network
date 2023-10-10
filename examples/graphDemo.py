@@ -1,28 +1,31 @@
 import numpy as np
 import torch
-from torchays import modules
 from torch import Tensor
 
+import torchays.modules as ays
 
 GPU_ID = 0
-device = torch.device(
-    'cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
+device = (
+    torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
+)
 torch.manual_seed(5)
 torch.cuda.manual_seed_all(5)
 np.random.seed(5)
 
 
-class TestNet(modules.AysBaseModule):
+class TestNet(ays.BaseModule):
     def __init__(self):
         super(TestNet, self).__init__()
-        self.relu = modules.AysReLU()
-        self.conv1 = modules.AysConv2d(
-            in_channels=3, out_channels=8, kernel_size=3, stride=2, padding=1)
-        self.bn1 = modules.AysBatchNorm2d(num_features=8)
-        self.conv2 = modules.AysConv2d(
-            in_channels=8, out_channels=16, kernel_size=3, stride=2, padding=1)
-        self.avg = modules.AysAvgPool2d(2, 1)
-        self.linear = modules.AysLinear(16, 2)
+        self.relu = ays.ReLU()
+        self.conv1 = ays.Conv2d(
+            in_channels=3, out_channels=8, kernel_size=3, stride=2, padding=1
+        )
+        self.bn1 = ays.BatchNorm2d(num_features=8)
+        self.conv2 = ays.Conv2d(
+            in_channels=8, out_channels=16, kernel_size=3, stride=2, padding=1
+        )
+        self.avg = ays.AvgPool2d(2, 1)
+        self.linear = ays.Linear(16, 2)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -32,7 +35,7 @@ class TestNet(modules.AysBaseModule):
         x = self.conv2(x)
         x = self.avg(x)
 
-        x = self.easy_forward(lambda x: torch.flatten(x, 1), x)
+        x = self._forward(lambda x: torch.flatten(x, 1), x)
 
         x = self.linear(x)
         return x
@@ -40,18 +43,17 @@ class TestNet(modules.AysBaseModule):
     def forward_graph(self, x, weight_graph: Tensor = None, bias_graph: Tensor = None):
         input_size = self._get_input_size(x, weight_graph)
         bias_graph = bias_graph.reshape(bias_graph.size(0), -1)
-        weight_graph = weight_graph.reshape(
-            weight_graph.size(0), -1, *input_size)
+        weight_graph = weight_graph.reshape(weight_graph.size(0), -1, *input_size)
         return weight_graph, bias_graph
 
 
 net = TestNet().to(device)
 data = torch.randn(2, 3, 8, 8).to(device)
 
-net.val()
+net.eval()
 print(net(data))
 
-net.eval()
+net.graph()
 with torch.no_grad():
     output, graph = net(data)
     weight_graph, bias_graph = graph['weight_graph'], graph['bias_graph']

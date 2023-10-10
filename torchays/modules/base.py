@@ -1,16 +1,17 @@
-from typing import Callable
+from typing import Any, Callable
+from sympy import true
+
 import torch
 import torch.nn as nn
-from typing import Any
 from torch import Tensor
 
 
-class AysBaseModule(nn.Module):
+class BaseModule(nn.Module):
     """
     Getting weight_graph and bias_graph from network.
 
     Coding:
-            >>> net.eval()
+            >>> net.graph()
             >>> with torch.no_grad():
                     # out -> (output, graph)
                     # graph is a dict with "weight_graph", "bias_graph"
@@ -18,7 +19,7 @@ class AysBaseModule(nn.Module):
     """
 
     def __init__(self):
-        super(AysBaseModule, self).__init__()
+        super(BaseModule, self).__init__()
         self.graphing = False
 
     def _get_size_to_one(self, size):
@@ -26,9 +27,15 @@ class AysBaseModule(nn.Module):
         return torch.Size(map(lambda x: int(x / x), size))
 
     def _get_input_size(self, x, weight_graph):
-        return x.size()[1:] if weight_graph is None else weight_graph.size()[len(x.size()) :]
+        return (
+            x.size()[1:]
+            if weight_graph is None
+            else weight_graph.size()[len(x.size()) :]
+        )
 
-    def _forward_graph_unimplemented(self, *input, weight_graph: Tensor = None, bias_graph: Tensor = None):
+    def _forward_graph_unimplemented(
+        self, *input, weight_graph: Tensor = None, bias_graph: Tensor = None
+    ):
         raise NotImplementedError
 
     # forward_graph(Any):
@@ -44,32 +51,35 @@ class AysBaseModule(nn.Module):
     forward_graph: Callable[..., Any] = _forward_graph_unimplemented
 
     def train(self, mode: bool = True):
-        self.graphing = not mode
-        self.training = mode
-        for module in self.children():
-            if isinstance(module, AysBaseModule):
-                module.train(mode)
-        return self
+        self.graphing = False
+        return super().train(mode)
 
     def eval(self):
         self.train(False)
 
-    def val(self):
-        """training = False, graphing = False"""
+    def graph(self, mode: bool = True):
+        if not isinstance(mode, bool):
+            raise ValueError("training mode is expected to be boolean")
         self.training = False
-        self.graphing = False
+        self.graphing = mode
         for module in self.children():
-            if isinstance(module, AysBaseModule):
-                module.val()
+            if isinstance(module, BaseModule):
+                module.graph()
         return self
 
-    def get_input(self, input):
+    def _get_input(self, input):
         """
         If 'graphing' is True, using this function to get the input.
         """
 
-        assert self.graphing, "This function is used when the parameter 'graphing' is 'True'."
-        if not isinstance(tuple(input)[-1], dict) or ("weight_graph" not in tuple(input)[-1]) or ("bias_graph" not in tuple(input)[-1]):
+        assert (
+            self.graphing
+        ), "This function is used when the parameter 'graphing' is 'True'."
+        if (
+            not isinstance(tuple(input)[-1], dict)
+            or ("weight_graph" not in tuple(input)[-1])
+            or ("bias_graph" not in tuple(input)[-1])
+        ):
             input = input if isinstance(input, tuple) else (input,)
             return input, {
                 "weight_graph": None,
@@ -78,7 +88,7 @@ class AysBaseModule(nn.Module):
         input = tuple(input)
         return input[:-1], input[-1]
 
-    def get_graph(self, *args, **kwargs):
+    def _forward_graph(self, graph_forward: Callable[..., Any], *args, **kwargs):
         """
         If the results of "forward_graph" is "weight_graph, bias_graph", you can use this function to wapper the graph to a 'dict'.
 
@@ -88,13 +98,13 @@ class AysBaseModule(nn.Module):
                 "bias_graph": bg,
             }
         """
-        wg, bg = self.forward_graph(*args, **kwargs)
+        wg, bg = graph_forward(*args, **kwargs)
         return {
             "weight_graph": wg,
             "bias_graph": bg,
         }
 
-    def easy_forward(self, function: Callable[..., Any], input):
+    def _forward(self, function: Callable[..., Any], input):
         """
         This function uses the "forward_graph", if self.graphing is True.
 
@@ -104,8 +114,11 @@ class AysBaseModule(nn.Module):
 
         """
         if self.graphing:
-            args, kwargs = self.get_input(input)
-            output = (function(*args), self.get_graph(*args, **kwargs))
+            args, kwargs = self._get_input(input)
+            output = (
+                function(*args),
+                self._forward_graph(self.forward_graph, *args, **kwargs),
+            )
         else:
             if not isinstance(input, tuple):
                 input = (input,)

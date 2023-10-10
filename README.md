@@ -58,7 +58,7 @@ class TestNet(modules.AysBaseModule):
         x = self.conv2(x)
         x = self.avg(x)
 
-        x = self.easy_forward(lambda x: torch.flatten(x, 1), x)
+        x = self._forward(lambda x: torch.flatten(x, 1), x)
         x = self.linear(x)
         return x
 
@@ -73,9 +73,9 @@ data = torch.randn(2, 3, 8, 8)
 net = TestNet().to(device)
 
 """ 
-If the net needs to be trained, net can use 'net.train()' which cannot genarate the graph. 'net.val()' uses to validation or test net without graph. 'net.eval()' will genarate the graph, and the output of the network is a tuple with result of network and a dict about network graph with 'weight_graph' and 'bias_graph'.
+If the net needs to be trained, net can use 'net.train()' which cannot genarate the graph. 'net.eval()' uses to validation or test net without graph. 'net.graph()' will genarate the graph, and the output of the network is a tuple with result of network and a dict about network graph with 'weight_graph' and 'bias_graph'.
 """
-net.eval()
+net.graph()
 with torch.no_grad():
     output, graph = net(data)
     weight_graph, bias_graph = graph['weight_graph'], graph['bias_graph']

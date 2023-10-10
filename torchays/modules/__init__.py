@@ -1,17 +1,26 @@
-from torchays.modules.activation import AysReLU, AysLeakyRule
-from torchays.modules.base import AysBaseModule
-from torchays.modules.batchnorm import AysBatchNorm1d, AysBatchNorm2d, AysBatchNorm3d, AysBatchNormNone
-from torchays.modules.container import AysSequential
-from torchays.modules.conv import AysConv2d
-from torchays.modules.linear import AysLinear
-from torchays.modules.pooling import AysAvgPool2d
+from torchays.modules.activation import LeakyRule, ReLU
+from torchays.modules.base import BaseModule
+from torchays.modules.batchnorm import (
+    BatchNorm1d,
+    BatchNorm2d,
+    BatchNorm3d,
+    BatchNormNone,
+)
+from torchays.modules.container import Sequential
+from torchays.modules.conv import Conv2d
+from torchays.modules.linear import Linear
+from torchays.modules.pooling import AvgPool2d
 
 __all__ = [
-    'AysReLU', 'AysLeakyRule'
-    'AysBaseModule',
-    'AysBatchNorm1d', 'AysBatchNorm2d', 'AysBatchNorm3d', 'AysBatchNormNone'
-    'AysSequential',
-    'AysConv2d',
-    'AysLinear',
-    'AysAvgPool2d',
+    "ReLU",
+    "LeakyRule",
+    "BaseModule",
+    "BatchNorm1d",
+    "BatchNorm2d",
+    "BatchNorm3d",
+    "BatchNormNone",
+    "Sequential",
+    "Conv2d",
+    "Linear",
+    "AvgPool2d",
 ]
