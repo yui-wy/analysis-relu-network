@@ -40,9 +40,6 @@ class _BatchNorm(nn.modules.batchnorm._BatchNorm, base.BaseModule):
     def train(self, mode: bool = True):
         return base.BaseModule.train(self, mode=mode)
 
-    def eval(self):
-        return base.BaseModule.eval(self)
-
 
 class BatchNormNone(_BatchNorm):
     def forward(self, input):

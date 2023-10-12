@@ -34,9 +34,6 @@ class ParamReLU(base.BaseModule):
     def train(self, mode: bool = True):
         return base.BaseModule.train(self, mode=mode)
 
-    def eval(self):
-        return base.BaseModule.eval(self)
-
 
 class ReLU(nn.ReLU, ParamReLU):
     __doc__ = nn.ReLU.__doc__

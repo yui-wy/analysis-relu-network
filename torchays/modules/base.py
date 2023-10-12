@@ -54,9 +54,6 @@ class BaseModule(nn.Module):
         self.graphing = False
         return super().train(mode)
 
-    def eval(self):
-        self.train(False)
-
     def graph(self, mode: bool = True):
         if not isinstance(mode, bool):
             raise ValueError("training mode is expected to be boolean")
