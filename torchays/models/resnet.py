@@ -32,19 +32,13 @@ class TestResNet(ays.BaseModule):
     def _make_layers(self, first_features: int, layers: List[int]):
         self.linear_res = ays.Linear(first_features, layers[0])
         for i in range(self.n_layers - 1):
-            self.add_module(
-                f"linear_{i}_1", ays.Linear(layers[i], layers[i], bias=True)
-            )
+            self.add_module(f"linear_{i}_1", ays.Linear(layers[i], layers[i], bias=True))
             self.add_module(f"norm_{i}_1", self._norm_layer(layers[i]))
-            self.add_module(
-                f"linear_{i}_2", ays.Linear(layers[i], layers[i + 1], bias=True)
-            )
+            self.add_module(f"linear_{i}_2", ays.Linear(layers[i], layers[i + 1], bias=True))
             self.add_module(f"norm_{i}_2", self._norm_layer(layers[i + 1]))
             # downsample
             if layers[i] != layers[i + 1]:
-                self.add_module(
-                    f"linear_{i}_d", ays.Linear(layers[i], layers[i + 1], bias=True)
-                )
+                self.add_module(f"linear_{i}_d", ays.Linear(layers[i], layers[i + 1], bias=True))
                 self.add_module(f"norm_{i}_d", self._norm_layer(layers[i + 1]))
 
     def forward(self, x: Tensor):
@@ -64,10 +58,7 @@ class TestResNet(ays.BaseModule):
                 out = out1
             else:
                 # downsample
-                if (
-                    self._modules.get(f"linear_{i}_d") != None
-                    and self._modules.get(f"norm_{i}_d") != None
-                ):
+                if self._modules.get(f"linear_{i}_d") != None and self._modules.get(f"norm_{i}_d") != None:
                     out = self._modules[f"linear_{i}_d"](out)
                     out = self._modules[f"norm_{i}_d"](out)
 
@@ -78,11 +69,11 @@ class TestResNet(ays.BaseModule):
 
         return out
 
-    def forward_graph_Layer(self, x: Tensor, layer=-1):
-        assert layer >= 0, "'layer' must be greater than 0."
+    def forward_graph_Layer(self, x: Tensor, depth=-1):
+        assert depth >= 0, "'layer' must be greater than 0."
         out = self.linear1(x)
         out = self.norm1(out)
-        if layer == 0:
+        if depth == 0:
             return out
         out = self.relu(out)
         out = self.linear_res(out)
@@ -92,7 +83,7 @@ class TestResNet(ays.BaseModule):
             out1 = self._modules[f"linear_{i}_1"](out)
             out1 = self._modules[f"norm_{i}_1"](out1)
             # relu
-            if layer == (i * 2 + 1):
+            if depth == (i * 2 + 1):
                 return out1
             out1 = self.relu(out1)
             out1 = self._modules[f"linear_{i}_2"](out1)
@@ -101,16 +92,13 @@ class TestResNet(ays.BaseModule):
                 out = out1
             else:
                 # downsample
-                if (
-                    self._modules.get(f"linear_{i}_d") != None
-                    and self._modules.get(f"norm_{i}_d") != None
-                ):
+                if self._modules.get(f"linear_{i}_d") != None and self._modules.get(f"norm_{i}_d") != None:
                     out = self._modules[f"linear_{i}_d"](out)
                     out = self._modules[f"norm_{i}_d"](out)
 
                 out = self._forward_plus(out1, out)
             # relu
-            if layer == (i * 2 + 2):
+            if depth == (i * 2 + 2):
                 return out
             out = self.relu(out)
         # ================================

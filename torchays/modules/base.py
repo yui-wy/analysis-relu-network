@@ -18,8 +18,8 @@ class BaseModule(nn.Module):
                     output, graph = net(input)
     """
 
-    def __init__(self):
-        super(BaseModule, self).__init__()
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         self.graphing = False
 
     def _get_size_to_one(self, size):
@@ -27,15 +27,9 @@ class BaseModule(nn.Module):
         return torch.Size(map(lambda x: int(x / x), size))
 
     def _get_input_size(self, x, weight_graph):
-        return (
-            x.size()[1:]
-            if weight_graph is None
-            else weight_graph.size()[len(x.size()) :]
-        )
+        return x.size()[1:] if weight_graph is None else weight_graph.size()[len(x.size()) :]
 
-    def _forward_graph_unimplemented(
-        self, *input, weight_graph: Tensor = None, bias_graph: Tensor = None
-    ):
+    def _forward_graph_unimplemented(self, *input, weight_graph: Tensor = None, bias_graph: Tensor = None):
         raise NotImplementedError
 
     # forward_graph(Any):
@@ -52,7 +46,7 @@ class BaseModule(nn.Module):
 
     def train(self, mode: bool = True):
         self.graphing = False
-        return super().train(mode)
+        return nn.Module.train(self, mode)
 
     def graph(self, mode: bool = True):
         if not isinstance(mode, bool):
@@ -69,14 +63,8 @@ class BaseModule(nn.Module):
         If 'graphing' is True, using this function to get the input.
         """
 
-        assert (
-            self.graphing
-        ), "This function is used when the parameter 'graphing' is 'True'."
-        if (
-            not isinstance(tuple(input)[-1], dict)
-            or ("weight_graph" not in tuple(input)[-1])
-            or ("bias_graph" not in tuple(input)[-1])
-        ):
+        assert self.graphing, "This function is used when the parameter 'graphing' is 'True'."
+        if not isinstance(tuple(input)[-1], dict) or ("weight_graph" not in tuple(input)[-1]) or ("bias_graph" not in tuple(input)[-1]):
             input = input if isinstance(input, tuple) else (input,)
             return input, {
                 "weight_graph": None,

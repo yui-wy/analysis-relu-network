@@ -1,8 +1,8 @@
 import logging
 import math
 import os
-import matplotlib
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import polytope as pc
@@ -10,9 +10,9 @@ import torch
 from sklearn.datasets import *
 from torch.utils import data
 
+from torchays.analysis import ReLUNets
 from torchays.models.testnet import TestTNetLinear
-from torchays.modules.base import BaseModule
-from torchays.utils import areaUtils
+from torchays.modules import BaseModule, BatchNormNone
 
 GPU_ID = 0
 SEED = 5
@@ -22,7 +22,7 @@ N_NUM = [16, 16, 16]
 N_SAMPLE = 1000
 TAG = f"Linear-{N_NUM}-{DATASET}-{N_SAMPLE}".replace(' ', '')
 
-MAX_EPOCH = 100
+MAX_EPOCH = 50
 SAVE_EPOCH = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
 
 BATCH_SIZE = 32
@@ -38,9 +38,7 @@ if not os.path.exists(MODEL_DIR):
 if not os.path.exists(LAB_DIR):
     os.makedirs(LAB_DIR)
 
-device = (
-    torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
-)
+device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
 COLOR = (
     'lightcoral',
     'royalblue',
@@ -64,9 +62,7 @@ class ToyDateBase(data.Dataset):
         self.x = x
         if isNorm:
             self.x = (self.x - np.min(self.x)) / (np.max(self.x) - np.min(self.x))
-            self.x = (self.x - self.x.mean(0, keepdims=True)) / (
-                (self.x.std(0, keepdims=True) + 1e-16)
-            )
+            self.x = (self.x - self.x.mean(0, keepdims=True)) / ((self.x.std(0, keepdims=True) + 1e-16))
             self.x /= np.max(np.abs(self.x))
         self.y = y
 
@@ -115,15 +111,7 @@ def getDataSet(setName, n_sample, noise, random_state, data_path):
         n_classes = 2
     if setName[:6] == "random":
         x = np.random.uniform(-1, 1, (n_sample, 2))
-        y = np.sign(
-            np.random.uniform(
-                -1,
-                1,
-                [
-                    n_sample,
-                ],
-            )
-        )
+        y = np.sign(np.random.uniform(-1, 1, [n_sample]))
         y = (np.abs(y) + y) / 2
         isNorm = False
         n_classes = 2
@@ -137,15 +125,11 @@ def getDataSet(setName, n_sample, noise, random_state, data_path):
 
 def train():
     dataset, n_classes = getDataSet(DATASET, N_SAMPLE, 0.2, 5, SAVE_DIR)
-    trainLoader = data.DataLoader(
-        dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True
-    )
+    trainLoader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
     totalStep = math.ceil(len(dataset) / BATCH_SIZE)
 
-    net = TestTNetLinear(2, N_NUM, n_classes).to(device)
-    optim = torch.optim.Adam(
-        net.parameters(), lr=LR, weight_decay=1e-4, betas=[0.9, 0.999]
-    )
+    net = TestTNetLinear(2, N_NUM, n_classes, BatchNormNone).to(device)
+    optim = torch.optim.Adam(net.parameters(), lr=LR, weight_decay=1e-4, betas=[0.9, 0.999])
     ce = torch.nn.CrossEntropyLoss()
 
     save_step = [v for v in SAVE_EPOCH if v < 1]
@@ -166,27 +150,25 @@ def train():
             if (epoch + 1) == 1 and (j in steps):
                 net.eval()
                 idx = steps.index(j)
-                torch.save(
-                    net.state_dict(),
-                    os.path.join(MODEL_DIR, f'net_{save_step[idx]}.pth'),
-                )
-            print(
-                f"Epoch: {epoch+1} / {MAX_EPOCH}, Step: {j} / {totalStep}, Loss: {loss:.4f}, Acc: {acc:.4f}"
-            )
+                torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_{save_step[idx]}.pth'))
+                net.train()
+            print(f"Epoch: {epoch+1} / {MAX_EPOCH}, Step: {j} / {totalStep}, Loss: {loss:.4f}, Acc: {acc:.4f}")
 
         print(f"Epoch: {epoch+1} / {MAX_EPOCH}")
         if (epoch + 1) in SAVE_EPOCH:
-            print("Save net....")
+            print(f"Save net: net_{epoch+1}.pth")
+            net.eval()
             torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_{epoch+1}.pth'))
+
+    acc = val_net(net, trainLoader).cpu().numpy()
+    print(f'Accuracy: {acc:.4f}')
 
 
 def getRegion():
     dataset, n_classes = getDataSet(DATASET, N_SAMPLE, 0.2, 5, SAVE_DIR)
-    val_dataloader = data.DataLoader(
-        dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True
-    )
-    net = TestTNetLinear(2, N_NUM, n_classes)
-    au = areaUtils.AnalysisReLUNetUtils(device=device)
+    val_dataloader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+    net = TestTNetLinear(2, N_NUM, n_classes, BatchNormNone).to(device)
+    au = ReLUNets(device=device)
     modelList = os.listdir(MODEL_DIR)
     with torch.no_grad():
         for modelName in modelList:
@@ -199,18 +181,20 @@ def getRegion():
                 os.makedirs(saveDir)
             au.logger = getLogger(saveDir, f"region-{os.path.splitext(modelName)[0]}")
             modelPath = os.path.join(MODEL_DIR, modelName)
-            net.load_state_dict(torch.load(modelPath, map_location='cpu'))
-            net = net.to(device)
+            net.load_state_dict(torch.load(modelPath))
             acc = val_net(net, val_dataloader).cpu().numpy()
             print(f'Accuracy: {acc:.4f}')
-            regionNum = au.getAreaNum(
-                net, 1.0, inputSize=(2,), countLayers=net.n_relu, isSaveArea=True
-            )
-            funcs, areas, points = au.getAreaData()
+
+            funcs, areas, points = [], [], []
+
+            def handler(point, functions, region):
+                points.append(point)
+                funcs.append(functions)
+                areas.append(region)
+
+            regionNum = au.get_region_counts(net, 1.0, input_size=(2,), depth=net.n_relu, region_handler=handler)
             # draw fig
-            drawReginImage = DrawReginImage(
-                regionNum, funcs, areas, points, saveDir, net, n_classes
-            )
+            drawReginImage = DrawReginImage(regionNum, funcs, areas, points, saveDir, net, n_classes)
             drawReginImage.drawRegionImg()
             drawReginImage.drawRegionImgResult()
             dataSaveDict = {
@@ -286,9 +270,7 @@ class DrawReginImage:
         plt.clf()
         plt.close()
 
-    def drawRegionImgResult(
-        self, color_bar: bool = False, fileName: str = "regionImgResult.png"
-    ):
+    def drawRegionImgResult(self, color_bar: bool = False, fileName: str = "regionImgResult.png"):
         fig = plt.figure(0, figsize=(8, 7), dpi=600)
         ax = fig.subplots()
         ax.cla()

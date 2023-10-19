@@ -4,12 +4,10 @@ import polytope as pc
 import torch
 
 import torchays.modules as ays
-from torchays.utils import areaUtils
+from torchays.analysis import ReLUNets
 
 GPU_ID = 0
-device = (
-    torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
-)
+device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
 torch.manual_seed(5)
 torch.cuda.manual_seed_all(5)
 np.random.seed(5)
@@ -34,13 +32,13 @@ class TestNet(ays.BaseModule):
 
         return x
 
-    def forward_graph_Layer(self, x, layer=-1):
+    def forward_graph_Layer(self, x, depth=-1):
         x = self.fc1(x)
-        if layer == 0:
+        if depth == 0:
             return x
         x = self.relu(x)
         x = self.fc2(x)
-        if layer == 1:
+        if depth == 1:
             return x
         x = self.relu(x)
         x = self.fc4(x)
@@ -48,11 +46,18 @@ class TestNet(ays.BaseModule):
 
 
 net = TestNet((2,)).to(device)
+au = ReLUNets(device=device)
 
-au = areaUtils.AnalysisReLUNetUtils(device=device)
-num = au.getAreaNum(net, 1, countLayers=1, isSaveArea=True)
-funcs, areas, points = au.getAreaData()
+funcs, areas, points = [], [], []
 
+
+def handler(point, functions, region):
+    points.append(point)
+    funcs.append(functions)
+    areas.append(region)
+
+
+num = au.get_region_counts(net, 1, depth=1, region_handler=handler)
 ax = plt.subplot()
 for i in range(num):
     #  to <= 0

@@ -34,16 +34,16 @@ class TestTNetLinear(ays.BaseModule):
         x = self._modules[f"{self.n_layers}"](x)
         return x
 
-    def forward_graph_Layer(self, x, layer=0):
-        assert layer >= 0, "'layer' must be greater than 0."
+    def forward_graph_Layer(self, x, depth=0):
+        assert depth >= 0, "'layer' must be greater than 0."
         x = self._modules['0'](x)
-        if layer == 0:
+        if depth == 0:
             return x
         x = self.relu(x)
         for i in range(1, self.n_layers):
             x = self._modules[f'{i}'](x)
             x = self._modules[f"{i}_norm"](x)
-            if layer == i:
+            if depth == i:
                 return x
             x = self.relu(x)
         x = self._modules[f"{self.n_layers}"](x)
