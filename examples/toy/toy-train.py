@@ -22,7 +22,7 @@ N_NUM = [16, 16, 16]
 N_SAMPLE = 1000
 TAG = f"Linear-{N_NUM}-{DATASET}-{N_SAMPLE}".replace(' ', '')
 
-MAX_EPOCH = 50
+MAX_EPOCH = 100
 SAVE_EPOCH = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
 
 BATCH_SIZE = 32
