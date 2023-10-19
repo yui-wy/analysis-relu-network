@@ -110,7 +110,7 @@ class ReLUNets:
             # (output.num, input.num + 1)
         return torch.cat([weight_graph, bias_graph], dim=1)
 
-    def _minimize(self, function, x0, constraints, jac, method="SLSQP", tol=1e-20, options={"maxiter": 100}):
+    def _minimize(self, function, x0, constraints, jac, method="SLSQP", tol=1e-20, options={"maxiter": 10}):
         return minimize(function, x0, method=method, constraints=constraints, jac=jac, tol=tol, options=options)
 
     def _calulate_radius(self, functions, x):
@@ -142,6 +142,7 @@ class ReLUNets:
 
     def _calulate_region_inner_point(self, child_functions, child_region, parent_functions, parent_region, inner_point, depth):
         """
+        1. 计算区域是否存在; 2. 若区域存在, 则计算构成区域的最小数量的边界, 并且获得相邻区域中的点;
         *   min_{x} (aX + b);
         *   s.t. AX + B >= 0;
         """
@@ -152,7 +153,7 @@ class ReLUNets:
         # initialize output
         next_functions, next_region, neighbor_region_inner_points = [], [], []
 
-        # checking whether the region exists, the inner point will be obtained if existed.
+        # 1. checking whether the region exists, the inner point will be obtained if existed.
         r = np.random.uniform(0, self.bound)
         next_inner_point, r = self._calulate_radius(constraint_functions, np.append(inner_point, r))
         result = np.matmul(constraint_functions[:, :-1], next_inner_point.T) + constraint_functions[:, -1]
@@ -163,7 +164,7 @@ class ReLUNets:
         self.logger.info(f"-----------point Layer: {depth}--------------")
         self.logger.info(f"Distance: {r}, Point: {next_inner_point}")
 
-        # Find the least edge functions to express this region and obtain the inner points of the neighbor regions.
+        # 2. find the least edges functions to express this region and obtain the inner points of the neighbor regions.
         constraints = [
             constraint(
                 linear_error(constraint_functions[i]),
@@ -184,7 +185,6 @@ class ReLUNets:
             # Find the points of neighbor rigon.
             if i < child_region.shape[0]:
                 new_child_region[i] = region[i]
-                # 便宜边界上的点来确定周边边界
                 x, a, b = result.x, constraint_functions[i, :-1], constraint_functions[i, -1]
                 if result.fun > 0:
                     k = -2 * (np.matmul(a, x) + b) / (np.matmul(a, a))
@@ -204,7 +204,7 @@ class ReLUNets:
 
     def _calculate_intersect(self, functions, parent_functions, parent_regions, x):
         """
-        计算是否与区域有交点, 目标函数有一点在区域内:
+        计算神经元方程构成的区域边界是否穿越父区域（目标函数有至少一点在区域内）:
         *    min(func(x)^2);
         *    s.t. pFunc(x) >= 0
         """
