@@ -1,5 +1,4 @@
 from typing import Any, Callable
-from sympy import true
 
 import torch
 import torch.nn as nn
