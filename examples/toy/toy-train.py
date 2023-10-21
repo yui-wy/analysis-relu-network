@@ -257,7 +257,7 @@ class DrawReginImage:
             alpha=0.9,
             color=color,
             edgecolor="grey",
-            linewidth=0.5,
+            linewidth=0.1,
             xlim=[self.minBound, self.maxBound],
             ylim=[self.minBound, self.maxBound],
         )
