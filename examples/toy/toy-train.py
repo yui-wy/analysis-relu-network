@@ -1,6 +1,6 @@
-import logging
 import math
 import os
+from typing import Tuple
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -11,8 +11,10 @@ from sklearn.datasets import *
 from torch.utils import data
 
 from torchays.analysis import ReLUNets
+from torchays.graph import COLOR, color, plot_regions, plot_regions_3d
 from torchays.models.testnet import TestTNetLinear
-from torchays.modules import BaseModule, BatchNormNone
+from torchays.modules import BaseModule
+from torchays.utils.logger import get_logger
 
 GPU_ID = 0
 SEED = 5
@@ -39,17 +41,7 @@ if not os.path.exists(LAB_DIR):
     os.makedirs(LAB_DIR)
 
 device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
-COLOR = (
-    'lightcoral',
-    'royalblue',
-    'limegreen',
-    'gold',
-    'darkorchid',
-    'aqua',
-    'tomato',
-    'deeppink',
-    'teal',
-)
+
 
 torch.manual_seed(SEED)
 torch.cuda.manual_seed_all(SEED)
@@ -128,7 +120,7 @@ def train():
     trainLoader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
     totalStep = math.ceil(len(dataset) / BATCH_SIZE)
 
-    net = TestTNetLinear(2, N_NUM, n_classes, BatchNormNone).to(device)
+    net = TestTNetLinear(2, N_NUM, n_classes).to(device)
     optim = torch.optim.Adam(net.parameters(), lr=LR, weight_decay=1e-4, betas=[0.9, 0.999])
     ce = torch.nn.CrossEntropyLoss()
 
@@ -167,7 +159,7 @@ def train():
 def getRegion():
     dataset, n_classes = getDataSet(DATASET, N_SAMPLE, 0.2, 5, SAVE_DIR)
     val_dataloader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
-    net = TestTNetLinear(2, N_NUM, n_classes, BatchNormNone).to(device)
+    net = TestTNetLinear(2, N_NUM, n_classes).to(device)
     au = ReLUNets(device=device)
     modelList = os.listdir(MODEL_DIR)
     with torch.no_grad():
@@ -179,7 +171,7 @@ def getRegion():
             saveDir = os.path.join(LAB_DIR, os.path.splitext(modelName)[0])
             if not os.path.exists(saveDir):
                 os.makedirs(saveDir)
-            au.logger = getLogger(saveDir, f"region-{os.path.splitext(modelName)[0]}")
+            au.logger = get_logger(f"region-{os.path.splitext(modelName)[0]}", os.path.join(saveDir, "region.log"))
             modelPath = os.path.join(MODEL_DIR, modelName)
             net.load_state_dict(torch.load(modelPath))
             acc = val_net(net, val_dataloader).cpu().numpy()
@@ -189,13 +181,14 @@ def getRegion():
 
             def handler(point, functions, region):
                 points.append(point)
-                funcs.append(functions)
-                areas.append(region)
+                funcs.append(functions.numpy())
+                areas.append(region.numpy())
 
             regionNum = au.get_region_counts(net, 1.0, input_size=(2,), depth=net.n_relu, region_handler=handler)
             # draw fig
             drawReginImage = DrawReginImage(regionNum, funcs, areas, points, saveDir, net, n_classes)
             drawReginImage.drawRegionImg()
+            drawReginImage.drawRegionImg3D()
             drawReginImage.drawRegionImgResult()
             dataSaveDict = {
                 "funcs": funcs,
@@ -205,19 +198,6 @@ def getRegion():
                 "accuracy": acc,
             }
             torch.save(dataSaveDict, os.path.join(saveDir, "dataSave.pkl"))
-
-
-def getLogger(saveDir, loggerName):
-    logger = logging.getLogger(loggerName)
-    logger.setLevel(logging.INFO)
-    formatter = logging.Formatter('[%(asctime)s] - %(name)s : %(message)s')
-    logName = "region.log"
-    fh = logging.FileHandler(os.path.join(saveDir, logName), mode='w')
-    fh.setLevel(logging.INFO)
-    fh.setFormatter(formatter)
-    logger.addHandler(fh)
-    logger.propagate = False
-    return logger
 
 
 class DrawReginImage:
@@ -238,34 +218,49 @@ class DrawReginImage:
         self.areas = areas
         self.points = points
         self.saveDir = saveDir
-        self.net = net.to(device)
-        self.net.eval()
+        self.net = net.to(device).eval()
         self.n_classes = n_classes
         self.minBound = minBound
         self.maxBound = maxBound
-        self.__getColorDict()
 
     def drawRegionImg(self, fileName="regionImg.png"):
         fig = plt.figure(0, figsize=(8, 7), dpi=600)
         ax = fig.subplots()
         ax.cla()
         ax.tick_params(labelsize=15)
-        for i in range(self.regionNum):
-            func, area = self.funcs[i], self.areas[i]
-            func = -area.view(-1, 1) * func
-            func = func.numpy()
-            A, B = func[:, :-1], -func[:, -1]
-            p = pc.Polytope(A, B)
-            p.plot(
-                ax,
-                color=np.random.uniform(0.0, 0.95, 3),
-                alpha=1.0,
-                linestyle='-',
-                linewidth=0.01,
-                edgecolor='w',
-            )
-        ax.set_xlim(self.minBound, self.maxBound)
-        ax.set_ylim(self.minBound, self.maxBound)
+        plot_regions(
+            self.funcs,
+            self.areas,
+            ax=ax,
+            xlim=[self.minBound, self.maxBound],
+            ylim=[self.minBound, self.maxBound],
+        )
+        plt.savefig(os.path.join(self.saveDir, fileName))
+        plt.clf()
+        plt.close()
+
+    def _z_fun(self, xy: np.ndarray) -> Tuple[np.ndarray, int]:
+        xy = torch.from_numpy(xy).to(device).float()
+        z: torch.Tensor = self.net(xy)
+        return z.cpu().numpy(), range(self.n_classes)
+
+    def drawRegionImg3D(self, fileName="regionImg3D.png"):
+        fig = plt.figure(0)
+        ax = fig.add_subplot(projection="3d")
+        ax.cla()
+        ax.tick_params(labelsize=15)
+        plot_regions_3d(
+            self.funcs,
+            self.areas,
+            z_fun=self._z_fun,
+            ax=ax,
+            alpha=0.9,
+            color=color,
+            edgecolor="grey",
+            linewidth=0.5,
+            xlim=[self.minBound, self.maxBound],
+            ylim=[self.minBound, self.maxBound],
+        )
         plt.savefig(os.path.join(self.saveDir, fileName))
         plt.clf()
         plt.close()
@@ -278,8 +273,7 @@ class DrawReginImage:
         img = self.__draw_hot(ax)
         for i in range(self.regionNum):
             func, area = self.funcs[i], self.areas[i]
-            func = -area.view(-1, 1) * func
-            func = func.numpy()
+            func = -area.reshape(-1, 1) * func
             A, B = func[:, :-1], -func[:, -1]
             p = pc.Polytope(A, B)
             p.plot(
@@ -329,12 +323,7 @@ class DrawReginImage:
         data = torch.from_numpy(data).to(device)
         return data
 
-    def __getColorDict(self):
-        self.colorDict = {}
-        for i in range(self.n_classes):
-            self.colorDict[i] = COLOR[i]
-
 
 if __name__ == "__main__":
-    train()
+    # train()
     getRegion()

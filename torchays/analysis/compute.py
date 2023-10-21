@@ -27,8 +27,8 @@ from torchays.utils.logger import get_logger
 class WapperRegion:
     """
     Get the region(sign) of the funtion list.
-    *  1 : f(x) >= 0
-    * -1 : f(x) < 0
+    *  1 : f(x) > 0
+    * -1 : f(x) <= 0
     """
 
     def __init__(self, regions: torch.Tensor = None):
@@ -91,7 +91,7 @@ class ReLUNets:
     def __init__(self, device=torch.device("cpu"), logger=None):
         self.device = device
         self.one = torch.ones(1).double()
-        self.logger = get_logger("AnalysisReLUNetUtils-Console") if logger is None else logger
+        self.logger = logger or get_logger("AnalysisReLUNetUtils-Console")
 
     def _get_function_list(self, x, depth: int):
         """
@@ -264,7 +264,7 @@ class ReLUNets:
     def _get_regions(self, x: torch.Tensor, functions: torch.Tensor) -> torch.Tensor:
         A, B = functions[:, :-1].double(), functions[:, -1].double()
         regions = torch.sign(x @ A.T + B)
-        regions = torch.where(regions == 0, self.one, regions).type(torch.int8)
+        regions = torch.where(regions == 0, -self.one, regions).type(torch.int8)
         return regions
 
     def _layer_region_counts(self, inner_point: np.ndarray, functions: torch.Tensor, region: torch.Tensor, depth: int) -> int:
@@ -315,7 +315,7 @@ class ReLUNets:
         self.last_depth = depth
         self.net = net.to(self.device).graph()
         self.input_size = input_size
-        self.region_handler = self._default_handler() if region_handler is None else region_handler
+        self.region_handler = region_handler or self._default_handler()
         self._init_constraints()
 
         # initialize the parameters
