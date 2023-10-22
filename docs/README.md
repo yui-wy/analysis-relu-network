@@ -63,7 +63,7 @@ class TestNet(modules.AysBaseModule):
         return x
 
     def forward_graph(self, x, weight_graph=None, bias_graph=None):
-        input_size = self._get_input_size(x, weight_graph)
+        input_size = self._get_origin_size(x, weight_graph)
         bias_graph = bias_graph.reshape(bias_graph.size(0), -1)
         weight_graph = weight_graph.reshape(weight_graph.size(0), -1, *input_size)
         return weight_graph, bias_graph

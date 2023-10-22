@@ -13,7 +13,7 @@ torch.cuda.manual_seed_all(5)
 np.random.seed(5)
 
 
-class TestNet(ays.BaseModule):
+class TestNet(ays.Module):
     def __init__(self, input_size=(2,)):
         super(TestNet, self).__init__()
         self.relu = ays.ReLU()

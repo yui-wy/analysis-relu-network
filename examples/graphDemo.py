@@ -2,28 +2,22 @@ import numpy as np
 import torch
 from torch import Tensor
 
-import torchays.modules as ays
+import torchays.nn as ays
 
 GPU_ID = 0
-device = (
-    torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
-)
+device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
 torch.manual_seed(5)
 torch.cuda.manual_seed_all(5)
 np.random.seed(5)
 
 
-class TestNet(ays.BaseModule):
+class TestNet(ays.Module):
     def __init__(self):
         super(TestNet, self).__init__()
         self.relu = ays.ReLU()
-        self.conv1 = ays.Conv2d(
-            in_channels=3, out_channels=8, kernel_size=3, stride=2, padding=1
-        )
+        self.conv1 = ays.Conv2d(in_channels=3, out_channels=8, kernel_size=3, stride=2, padding=1)
         self.bn1 = ays.BatchNorm2d(num_features=8)
-        self.conv2 = ays.Conv2d(
-            in_channels=8, out_channels=16, kernel_size=3, stride=2, padding=1
-        )
+        self.conv2 = ays.Conv2d(in_channels=8, out_channels=16, kernel_size=3, stride=2, padding=1)
         self.avg = ays.AvgPool2d(2, 1)
         self.linear = ays.Linear(16, 2)
 
@@ -41,7 +35,7 @@ class TestNet(ays.BaseModule):
         return x
 
     def forward_graph(self, x, weight_graph: Tensor = None, bias_graph: Tensor = None):
-        input_size = self._get_input_size(x, weight_graph)
+        input_size = self._get_origin_size(x, weight_graph)
         bias_graph = bias_graph.reshape(bias_graph.size(0), -1)
         weight_graph = weight_graph.reshape(weight_graph.size(0), -1, *input_size)
         return weight_graph, bias_graph

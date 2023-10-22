@@ -1,4 +1,3 @@
-from torchays.models.resnet import TestResNet
-from torchays.models.testnet import TestTNetLinear
+from torchays.models.testnet import TestTNetLinear, TestResNet
 
-__all__ = [ 'TestResNet', 'TestTNetLinear']
+__all__ = ['TestResNet', 'TestTNetLinear']

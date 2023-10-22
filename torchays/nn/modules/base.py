@@ -5,7 +5,7 @@ import torch.nn as nn
 from torch import Tensor
 
 
-class BaseModule(nn.Module):
+class Module(nn.Module):
     """
     Getting weight_graph and bias_graph from network.
 
@@ -23,25 +23,25 @@ class BaseModule(nn.Module):
 
     def _get_size_to_one(self, size):
         assert isinstance(size, torch.Size), 'Input must be a torch.Size'
-        return torch.Size(map(lambda x: int(x / x), size))
+        return torch.Size((1,) * len(size))
 
-    def _get_input_size(self, x, weight_graph):
-        return x.size()[1:] if weight_graph is None else weight_graph.size()[len(x.size()) :]
+    def _get_origin_size(self, input: torch.Tensor, weight_graph: torch.Tensor):
+        return weight_graph.size()[len(input.size()) :] if weight_graph is not None else input.size()[1:]
 
-    def _forward_graph_unimplemented(self, *input, weight_graph: Tensor = None, bias_graph: Tensor = None):
+    def forward_graph(self, *input, weight_graph: Tensor = None, bias_graph: Tensor = None):
+        """
+        forward_graph(Any):
+
+        Return:
+            weight_graph : A Tensor is the graph of the weight.
+            bias_graph : A Tensor is the graph of the bias.
+
+        Example:
+            >>> def forward_graph(...):
+            >>>     ....
+            >>>     return weight_graph, bias_graph
+        """
         raise NotImplementedError
-
-    # forward_graph(Any):
-    #
-    # Return:
-    #   weight_graph : A Tensor is the graph of the weight.
-    #   bias_graph : A Tensor is the graph of the bias.
-    #
-    # Example:
-    #   def forward_graph(...):
-    #       ....
-    #       return weight_graph, bias_graph
-    forward_graph: Callable[..., Any] = _forward_graph_unimplemented
 
     def train(self, mode: bool = True):
         self.graphing = False
@@ -53,7 +53,7 @@ class BaseModule(nn.Module):
         self.training = False
         self.graphing = mode
         for module in self.children():
-            if isinstance(module, BaseModule):
+            if isinstance(module, Module):
                 module.graph()
         return self
 

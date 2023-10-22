@@ -1,10 +1,14 @@
 import torch
 import torch.nn as nn
 
-from torchays.modules import base
+from torchays.nn.modules import base
 
 
-class _BatchNorm(nn.modules.batchnorm._BatchNorm, base.BaseModule):
+class _BatchNorm(nn.modules.batchnorm._BatchNorm, base.Module):
+    def __init__(self, num_features: int, eps: float = 0.00001, momentum: float = 0.1, affine: bool = True, track_running_stats: bool = True, device=None, dtype=None) -> None:
+        super().__init__(num_features, eps, momentum, affine, track_running_stats, device, dtype)
+        assert self.track_running_stats, "Please set track_running_stats = True"
+
     def forward(self, input):
         return self._forward(super().forward, input)
 
@@ -12,33 +16,20 @@ class _BatchNorm(nn.modules.batchnorm._BatchNorm, base.BaseModule):
         """
         Analyzing BatchNorm2d \n
         track_running_stats = True->Using saving var and mean.
-        graph_size: ((*x.shape)), (*input_size))
+        graph_size: ((*x.shape)), (*origin_size))
         """
-        assert self.track_running_stats, "Please set track_running_stats = True"
-        assert weight_graph is not None, "BatchNorm2d is not a first layer!!"
-        bias_graph = (
-            torch.zeros_like(x, device=x.device) if bias_graph is None else bias_graph
-        )
-        input_size = self._get_input_size(x, weight_graph)
+        bias_graph = torch.zeros_like(x, device=x.device) if bias_graph is None else bias_graph
+        origin_size = self._get_origin_size(x, weight_graph)
         bias_graph = super().forward(bias_graph)
 
         size = list(self._get_size_to_one(x.size()[1:]))
         size[0] = -1
 
-        weight = (
-            self.weight
-            if self.affine
-            else torch.ones(self.num_features, device=x.device)
-        )
-        real_weight = (weight / torch.sqrt(self.running_var + self.eps)).view(
-            *size, *self._get_size_to_one(input_size)
-        )
+        weight = self.weight if self.affine else torch.ones(self.num_features, device=x.device)
+        real_weight = (weight / torch.sqrt(self.running_var + self.eps)).view(*size, *self._get_size_to_one(origin_size))
         weight_graph *= real_weight
 
         return weight_graph, bias_graph
-
-    def train(self, mode: bool = True):
-        return base.BaseModule.train(self, mode=mode)
 
 
 class BatchNormNone(_BatchNorm):
@@ -54,9 +45,7 @@ class BatchNorm1d(_BatchNorm):
 
     def _check_input_dim(self, input):
         if input.dim() != 2 and input.dim() != 3:
-            raise ValueError(
-                'expected 2D or 3D input (got {}D input)'.format(input.dim())
-            )
+            raise ValueError('expected 2D or 3D input (got {}D input)'.format(input.dim()))
 
 
 class BatchNorm2d(_BatchNorm):
