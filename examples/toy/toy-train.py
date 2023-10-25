@@ -13,7 +13,7 @@ from torch.utils import data
 from torchays.analysis import ReLUNets
 from torchays.graph import COLOR, color, plot_regions, plot_regions_3d
 from torchays.models.testnet import TestTNetLinear
-from torchays.modules import BaseModule
+from torchays.nn import Module
 from torchays.utils.logger import get_logger
 
 GPU_ID = 0
@@ -208,7 +208,7 @@ class DrawReginImage:
         areas,
         points,
         saveDir,
-        net: BaseModule,
+        net: Module,
         n_classes=2,
         minBound=-1,
         maxBound=1,

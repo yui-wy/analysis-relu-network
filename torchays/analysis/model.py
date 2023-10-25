@@ -1,7 +1,7 @@
 from typing import Any, Tuple, Dict
 
 import torch
-from torchays.modules.base import Module
+from torchays.nn import Module
 
 
 class Model(Module):

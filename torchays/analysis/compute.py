@@ -22,7 +22,7 @@ from torchays.analysis.optimization import (
     radius_constraint,
     square,
 )
-from torchays.modules.base import BaseModule
+from torchays.nn import Module
 from torchays.utils.logger import get_logger
 
 
@@ -390,7 +390,7 @@ class ReLUNets:
         """
         目前只支持方形的输入空间画图，需要修改。
         """
-        assert isinstance(net, BaseModule), "the type of net must be \"BaseModule\"."
+        assert isinstance(net, Module), "the type of net must be \"BaseModule\"."
         assert depth >= 0, "countLayers must >= 0."
         assert bound > 0, "Please set the bound > 0."
         # initialize the settings
