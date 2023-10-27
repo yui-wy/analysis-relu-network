@@ -3,7 +3,7 @@ import numpy as np
 import polytope as pc
 import torch
 
-import torchays.modules as ays
+from torchays import nn
 from torchays.analysis import ReLUNets
 
 GPU_ID = 0
@@ -13,13 +13,13 @@ torch.cuda.manual_seed_all(5)
 np.random.seed(5)
 
 
-class TestNet(ays.Module):
+class TestNet(nn.Module):
     def __init__(self, input_size=(2,)):
         super(TestNet, self).__init__()
-        self.relu = ays.ReLU()
-        self.fc1 = ays.Linear(input_size[0], 16, bias=True)
-        self.fc2 = ays.Linear(16, 16, bias=True)
-        self.fc4 = ays.Linear(16, 3, bias=True)
+        self.relu = nn.ReLU()
+        self.fc1 = nn.Linear(input_size[0], 16, bias=True)
+        self.fc2 = nn.Linear(16, 16, bias=True)
+        self.fc4 = nn.Linear(16, 3, bias=True)
 
     def forward(self, x):
         x = self.fc1(x)

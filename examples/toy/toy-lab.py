@@ -36,7 +36,7 @@ class default_plt:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.isLegend:
             box = self.ax.get_position()
-            self.ax.set_position([box.x0, box.y0, box.width, box.height*0.95])
+            self.ax.set_position([box.x0, box.y0, box.width, box.height * 0.95])
             self.ax.legend(prop={'weight': 'normal', 'size': 14}, loc='lower left', bbox_to_anchor=(0, 1.02, 1, 0.2), ncol=3, mode="expand")
 
         plt.savefig(self.savePath, dpi=600, format=f'{self.mode}')
@@ -79,7 +79,9 @@ def saveRegionEpochTabel(labDict: Dict, saveDir):
     head = None
     for tag, epochDict in labDict.items():
         tag1 = tag.split('-')[-1].replace(',', '-')
-        body = [tag1, ]
+        body = [
+            tag1,
+        ]
         dataList = []
         for epoch, fileDict in epochDict.items():
             data = [epoch, fileDict['regionNum']]
@@ -93,7 +95,9 @@ def saveRegionEpochTabel(labDict: Dict, saveDir):
         bodyStr = ','.join(body)
         if head is None:
             epochList = list(map(str, dataList[:, 0].tolist()))
-            head = ['model/epoch', ]
+            head = [
+                'model/epoch',
+            ]
             head.extend(epochList)
             headStr = ','.join(head)
             strBuff = strBuff + headStr + '\r\n'
@@ -169,20 +173,12 @@ def drawEpochAccPlot(labDict: Dict, saveDir):
 
 def drawDataSet(dataset, saveDir):
     savePath = os.path.join(saveDir, "distribution.png")
-    x, y, isNorm, n_classes = dataset['x'], dataset['y'], dataset['isNorm'], dataset['n_classes']
-    x = norm(x) if isNorm else x
+    x, y, n_classes = dataset['data'], dataset['classes'], dataset['n_classes']
     with default(savePath, 'x1', 'x2', isLegend=False, isGrid=False) as ax:
         ax.set_xlim(-1, 1)
         ax.set_ylim(-1, 1)
         for i in range(n_classes):
             ax.scatter(x[y == i, 0], x[y == i, 1], color=COLOR[i])
-
-
-def norm(x):
-    x = (x - np.min(x)) / (np.max(x) - np.min(x))
-    x = (x - x.mean(0, keepdims=True)) / ((x.std(0, keepdims=True) + 1e-16))
-    x /= np.max(np.abs(x))
-    return x
 
 
 if __name__ == "__main__":

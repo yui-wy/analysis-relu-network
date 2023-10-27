@@ -1,5 +1,5 @@
 from torchays.nn.modules.activation import LeakyRule, ReLU
-from torchays.nn.modules.base import Module
+from torchays.nn.modules.base import BIAS_GRAPH, WEIGHT_GRAPH, Module
 from torchays.nn.modules.batchnorm import (
     BatchNorm1d,
     BatchNorm2d,
@@ -24,4 +24,6 @@ __all__ = [
     "Linear",
     "AvgPool2d",
     "MaxPool2d",
+    "BIAS_GRAPH",
+    "WEIGHT_GRAPH",
 ]

@@ -10,60 +10,50 @@ import torch
 from sklearn.datasets import *
 from torch.utils import data
 
+from dataset import simple_get_data, MOON, GAUSSIAN_QUANTILES, RANDOM
+from torchays import nn
 from torchays.analysis import ReLUNets
 from torchays.graph import COLOR, color, plot_regions, plot_regions_3d
 from torchays.models.testnet import TestTNetLinear
 from torchays.nn import Module
-from torchays.utils.logger import get_logger
+from torchays.utils import get_logger
 
 GPU_ID = 0
 SEED = 5
-# DATASET = f"random{SEED}"
-DATASET = 'toy'
+DATASET = MOON
 N_NUM = [16, 16, 16]
-N_SAMPLE = 1000
-TAG = f"Linear-{N_NUM}-{DATASET}-{N_SAMPLE}".replace(' ', '')
+N_SAMPLES = 1000
+# only GAUSSIAN_QUANTILES
+N_CLASSES = 2
+TAG = f"Linear-{N_NUM}-{DATASET}-{N_SAMPLES}-{SEED}".replace(' ', '')
 
+# Training
 MAX_EPOCH = 100
 SAVE_EPOCH = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
-
 BATCH_SIZE = 32
 LR = 1e-3
+
+# Path
 ROOT_DIR = os.path.abspath("./")
-SAVE_DIR = os.path.join(ROOT_DIR, 'cache', DATASET, TAG)
-MODEL_DIR = os.path.join(SAVE_DIR, 'model')
-LAB_DIR = os.path.join(SAVE_DIR, 'lab')
-if not os.path.exists(SAVE_DIR):
-    os.makedirs(SAVE_DIR)
-if not os.path.exists(MODEL_DIR):
-    os.makedirs(MODEL_DIR)
-if not os.path.exists(LAB_DIR):
-    os.makedirs(LAB_DIR)
+SAVE_DIR = os.path.join(ROOT_DIR, "cache", DATASET, TAG)
+MODEL_DIR = os.path.join(SAVE_DIR, "model")
+LAB_DIR = os.path.join(SAVE_DIR, "lab")
+DATASET_PATH = os.path.join(SAVE_DIR, "dataset.pkl")
+
 
 device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
 
 
-torch.manual_seed(SEED)
-torch.cuda.manual_seed_all(SEED)
-np.random.seed(SEED)
+def init():
+    torch.manual_seed(SEED)
+    torch.cuda.manual_seed_all(SEED)
+    np.random.seed(SEED)
+    for dir in [SAVE_DIR, MODEL_DIR, LAB_DIR]:
+        os.makedirs(dir, exist_ok=True)
 
 
-class ToyDateBase(data.Dataset):
-    def __init__(self, x, y, isNorm=True) -> None:
-        super().__init__()
-        self.x = x
-        if isNorm:
-            self.x = (self.x - np.min(self.x)) / (np.max(self.x) - np.min(self.x))
-            self.x = (self.x - self.x.mean(0, keepdims=True)) / ((self.x.std(0, keepdims=True) + 1e-16))
-            self.x /= np.max(np.abs(self.x))
-        self.y = y
-
-    def __getitem__(self, index):
-        x, target = torch.from_numpy(self.x[index]), self.y[index]
-        return x, target
-
-    def __len__(self):
-        return self.x.shape[0]
+def get_data_set():
+    return simple_get_data(DATASET, N_SAMPLES, 0.2, 5, DATASET_PATH, n_classes=N_CLASSES)
 
 
 def accuracy(x, classes):
@@ -72,11 +62,11 @@ def accuracy(x, classes):
     return torch.sum(eq).float()
 
 
-def val_net(net, val_dataloader):
+def val_net(net: nn.Module, val_dataloader):
     net.eval()
     with torch.no_grad():
         val_accuracy_sum = 0
-        for _, (x, y) in enumerate(val_dataloader, 1):
+        for x, y in val_dataloader:
             x, y = x.float().to(device), y.long().to(device)
             x = net(x)
             val_acc = accuracy(x, y)
@@ -85,38 +75,8 @@ def val_net(net, val_dataloader):
     return val_accuracy_sum
 
 
-def getDataSet(setName, n_sample, noise, random_state, data_path):
-    isNorm = False
-    savePath = os.path.join(data_path, 'dataset.pkl')
-    n_classes = None
-    if os.path.exists(savePath):
-        dataDict = torch.load(savePath)
-        x, y, n_classes = dataDict['x'], dataDict['y'], dataDict['n_classes']
-        try:
-            isNorm = dataDict['isNorm']
-        except:
-            pass
-        return ToyDateBase(x, y, isNorm), n_classes
-    if setName == "toy":
-        x, y = make_moons(n_sample, noise=noise, random_state=random_state)
-        isNorm = True
-        n_classes = 2
-    if setName[:6] == "random":
-        x = np.random.uniform(-1, 1, (n_sample, 2))
-        y = np.sign(np.random.uniform(-1, 1, [n_sample]))
-        y = (np.abs(y) + y) / 2
-        isNorm = False
-        n_classes = 2
-    if setName[:5] == "noise":
-        isNorm = False
-        n_classes = 10
-    dataset = ToyDateBase(x, y, isNorm)
-    torch.save({'x': x, 'y': y, 'isNorm': isNorm, 'n_classes': n_classes}, savePath)
-    return dataset, n_classes
-
-
 def train():
-    dataset, n_classes = getDataSet(DATASET, N_SAMPLE, 0.2, 5, SAVE_DIR)
+    dataset, n_classes = get_data_set()
     trainLoader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
     totalStep = math.ceil(len(dataset) / BATCH_SIZE)
 
@@ -126,7 +86,6 @@ def train():
 
     save_step = [v for v in SAVE_EPOCH if v < 1]
     steps = [math.floor(v * totalStep) for v in save_step]
-
     torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_0.pth'))
     for epoch in range(MAX_EPOCH):
         net.train()
@@ -156,24 +115,23 @@ def train():
     print(f'Accuracy: {acc:.4f}')
 
 
-def getRegion():
-    dataset, n_classes = getDataSet(DATASET, N_SAMPLE, 0.2, 5, SAVE_DIR)
+def get_region():
+    dataset, n_classes = get_data_set()
     val_dataloader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
     net = TestTNetLinear(2, N_NUM, n_classes).to(device)
     au = ReLUNets(device=device)
-    modelList = os.listdir(MODEL_DIR)
+    model_list = os.listdir(MODEL_DIR)
     with torch.no_grad():
-        for modelName in modelList:
-            sign = float(modelName[4:-4])
+        for model_name in model_list:
+            sign = float(model_name[4:-4])
             if sign not in SAVE_EPOCH:
                 continue
-            print(f"Solve fileName: {modelName} ....")
-            saveDir = os.path.join(LAB_DIR, os.path.splitext(modelName)[0])
-            if not os.path.exists(saveDir):
-                os.makedirs(saveDir)
-            au.logger = get_logger(f"region-{os.path.splitext(modelName)[0]}", os.path.join(saveDir, "region.log"))
-            modelPath = os.path.join(MODEL_DIR, modelName)
-            net.load_state_dict(torch.load(modelPath))
+            print(f"Solve fileName: {model_name} ....")
+            save_dir = os.path.join(LAB_DIR, os.path.splitext(model_name)[0])
+            os.makedirs(save_dir, exist_ok=True)
+            au.logger = get_logger(f"region-{os.path.splitext(model_name)[0]}", os.path.join(save_dir, "region.log"))
+            model_path = os.path.join(MODEL_DIR, model_name)
+            net.load_state_dict(torch.load(model_path))
             acc = val_net(net, val_dataloader).cpu().numpy()
             print(f'Accuracy: {acc:.4f}')
 
@@ -184,46 +142,48 @@ def getRegion():
                 funcs.append(functions.numpy())
                 areas.append(region.numpy())
 
-            regionNum = au.get_region_counts(net, 1.0, input_size=(2,), depth=net.n_relu, region_handler=handler)
+            region_num = au.get_region_counts(net, 1.0, input_size=(2,), depth=net.n_relu, region_handler=handler)
             # draw fig
-            drawReginImage = DrawReginImage(regionNum, funcs, areas, points, saveDir, net, n_classes)
-            drawReginImage.drawRegionImg()
-            drawReginImage.drawRegionImg3D()
-            drawReginImage.drawRegionImgResult()
+            drawReginImage = DrawReginImage(region_num, funcs, areas, points, save_dir, net, n_classes)
+            drawReginImage.draw()
             dataSaveDict = {
                 "funcs": funcs,
                 "areas": areas,
                 "points": points,
-                "regionNum": regionNum,
+                "regionNum": region_num,
                 "accuracy": acc,
             }
-            torch.save(dataSaveDict, os.path.join(saveDir, "dataSave.pkl"))
+            torch.save(dataSaveDict, os.path.join(save_dir, "dataSave.pkl"))
 
 
 class DrawReginImage:
     def __init__(
         self,
-        regionNum,
+        region_num,
         funcs,
         areas,
         points,
-        saveDir,
+        save_dir,
         net: Module,
         n_classes=2,
-        minBound=-1,
-        maxBound=1,
+        min_bound=-1,
+        max_bound=1,
     ) -> None:
-        self.regionNum = regionNum
+        self.region_num = region_num
         self.funcs = funcs
         self.areas = areas
         self.points = points
-        self.saveDir = saveDir
+        self.save_dir = save_dir
         self.net = net.to(device).eval()
         self.n_classes = n_classes
-        self.minBound = minBound
-        self.maxBound = maxBound
+        self.min_bound = min_bound
+        self.max_bound = max_bound
 
-    def drawRegionImg(self, fileName="regionImg.png"):
+    def draw(self):
+        for draw_fun in [self.draw_region_img, self.draw_region_img_3d, self.draw_region_img_result]:
+            draw_fun()
+
+    def draw_region_img(self, fileName="regionImg.png"):
         fig = plt.figure(0, figsize=(8, 7), dpi=600)
         ax = fig.subplots()
         ax.cla()
@@ -232,10 +192,10 @@ class DrawReginImage:
             self.funcs,
             self.areas,
             ax=ax,
-            xlim=[self.minBound, self.maxBound],
-            ylim=[self.minBound, self.maxBound],
+            xlim=[self.min_bound, self.max_bound],
+            ylim=[self.min_bound, self.max_bound],
         )
-        plt.savefig(os.path.join(self.saveDir, fileName))
+        plt.savefig(os.path.join(self.save_dir, fileName))
         plt.clf()
         plt.close()
 
@@ -244,7 +204,7 @@ class DrawReginImage:
         z: torch.Tensor = self.net(xy)
         return z.cpu().numpy(), range(self.n_classes)
 
-    def drawRegionImg3D(self, fileName="regionImg3D.png"):
+    def draw_region_img_3d(self, fileName="regionImg3D.png"):
         fig = plt.figure(0)
         ax = fig.add_subplot(projection="3d")
         ax.cla()
@@ -258,20 +218,20 @@ class DrawReginImage:
             color=color,
             edgecolor="grey",
             linewidth=0.1,
-            xlim=[self.minBound, self.maxBound],
-            ylim=[self.minBound, self.maxBound],
+            xlim=[self.min_bound, self.max_bound],
+            ylim=[self.min_bound, self.max_bound],
         )
-        plt.savefig(os.path.join(self.saveDir, fileName))
+        plt.savefig(os.path.join(self.save_dir, fileName))
         plt.clf()
         plt.close()
 
-    def drawRegionImgResult(self, color_bar: bool = False, fileName: str = "regionImgResult.png"):
+    def draw_region_img_result(self, color_bar: bool = False, fileName: str = "regionImgResult.png"):
         fig = plt.figure(0, figsize=(8, 7), dpi=600)
         ax = fig.subplots()
         ax.cla()
         ax.tick_params(labelsize=15)
         img = self.__draw_hot(ax)
-        for i in range(self.regionNum):
+        for i in range(self.region_num):
             func, area = self.funcs[i], self.areas[i]
             func = -area.reshape(-1, 1) * func
             A, B = func[:, :-1], -func[:, -1]
@@ -284,12 +244,12 @@ class DrawReginImage:
                 linewidth=0.3,
                 edgecolor='black',
             )
-        ax.set_xlim(self.minBound, self.maxBound)
-        ax.set_ylim(self.minBound, self.maxBound)
+        ax.set_xlim(self.min_bound, self.max_bound)
+        ax.set_ylim(self.min_bound, self.max_bound)
         # Tip: draw colorbar
         if color_bar:
             fig.colorbar(img)
-        plt.savefig(os.path.join(self.saveDir, fileName))
+        plt.savefig(os.path.join(self.save_dir, fileName))
         plt.clf()
         plt.close()
 
@@ -309,14 +269,14 @@ class DrawReginImage:
             result_color,
             alpha=result_alpha,
             cmap=cmap,
-            extent=(self.minBound, self.maxBound, self.minBound, self.maxBound),
+            extent=(self.min_bound, self.max_bound, self.min_bound, self.max_bound),
             vmin=0,
             vmax=len(COLOR),
         )
 
     def __hot_data(self, num=1000):
-        x1 = np.linspace(self.minBound, self.maxBound, num)
-        x2 = np.linspace(self.minBound, self.maxBound, num)
+        x1 = np.linspace(self.min_bound, self.max_bound, num)
+        x2 = np.linspace(self.min_bound, self.max_bound, num)
         X1, X2 = np.meshgrid(x1, x2)
         X1, X2 = X1.flatten(), X2.flatten()
         data = np.vstack((X1, X2)).transpose()
@@ -324,6 +284,12 @@ class DrawReginImage:
         return data
 
 
+def main(is_train: bool = True):
+    init()
+    if is_train:
+        train()
+    get_region()
+
+
 if __name__ == "__main__":
-    # train()
-    getRegion()
+    main(True)

@@ -23,7 +23,7 @@ from torchays.analysis.optimization import (
     square,
 )
 from torchays.nn import Module
-from torchays.utils.logger import get_logger
+from torchays.utils import get_logger
 
 
 class RegionSet:

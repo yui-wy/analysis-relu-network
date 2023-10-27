@@ -4,6 +4,9 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
+WEIGHT_GRAPH = "weight_graph"
+BIAS_GRAPH = "bias_graph"
+
 
 class Module(nn.Module):
     """
@@ -84,8 +87,8 @@ class Module(nn.Module):
         """
         wg, bg = graph_forward(*args, **kwargs)
         return {
-            "weight_graph": wg,
-            "bias_graph": bg,
+            WEIGHT_GRAPH: wg,
+            BIAS_GRAPH: bg,
         }
 
     def _forward(self, function: Callable[..., Any], input):
