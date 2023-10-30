@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any, Callable, Tuple
 
 import torch
 import torch.nn as nn
@@ -52,7 +52,7 @@ class Module(nn.Module):
             self.origin_size = get_origin_size(input, weight_graph)
         return self.origin_size
 
-    def forward_graph(self, *input, weight_graph: Tensor = None, bias_graph: Tensor = None):
+    def forward_graph(self, *input, weight_graph: Tensor = None, bias_graph: Tensor = None) -> Tuple[Tensor, Tensor]:
         """
         forward_graph(Any):
 

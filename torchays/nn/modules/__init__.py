@@ -4,7 +4,7 @@ from .batchnorm import BatchNorm1d, BatchNorm2d, BatchNorm3d, BatchNormNone
 from .container import Sequential
 from .conv import Conv2d
 from .linear import Linear
-from .pooling import AvgPool2d, MaxPool2d
+from .pooling import AvgPool2d, MaxPool2d, AdaptiveAvgPool2d
 from .flatten import Flatten
 
 __all__ = [
@@ -26,4 +26,5 @@ __all__ = [
     "BIAS_GRAPH",
     "WEIGHT_GRAPH",
     "Flatten",
+    "AdaptiveAvgPool2d",
 ]

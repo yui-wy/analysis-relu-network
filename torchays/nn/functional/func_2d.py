@@ -73,13 +73,14 @@ def _2d_opr_weight(
     hook_kernel_weight = hook_kernel_weight[:, :, :, :, padding_w : hook_kernel_weight.size(-1) - padding_w]
     for h in range(output_h):
         idx_start, idx_end, idx_start_kernal, idx_end_kernal = __get_h_idx(h, stride_h, padding_h, kernel_h, input_h)
-        # hook_kernel_weight_s: (w_out, c_out, (c_in, h_pos-, w_in)) -> ((c_in, h_pos-, w_in), w_out, c_out)
-        hook_kernel_weight_s = hook_kernel_weight[:, :, :, idx_start_kernal:idx_end_kernal].reshape(output_w * out_channels, -1).permute(1, 0)
+        # hook_kernel_weight_s: (w_out, c_out, (c_in, h_pos-, w_in)) -> ((c_in, h_pos-, w_in), c_out, w_out)
+        hook_kernel_weight_s = hook_kernel_weight[:, :, :, idx_start_kernal:idx_end_kernal].permute(2, 3, 4, 1, 0).reshape(-1, output_w * out_channels)
         # pre_graph: (n, c_in, h_in, w_in, (*origin_size))
         # graph_hook: (n, (c_in, h_pos-, w_in), (origin_size)) -> (n, (origin_size), (c_in, h_pos-, w_in))
         hook_graph = weight_graph[:, :, idx_start:idx_end].reshape(n, -1, origin_size.numel()).permute(0, 2, 1)
-        # output_weight_graph: (n, c_out, w_out, *(origin_size))
-        output_weight_graph[:, :, h] = torch.matmul(hook_graph, hook_kernel_weight_s).reshape(n, *origin_size, output_w, out_channels).permute(0, 5, 4, 1, 2, 3)
+        # output_weight_graph:  (n, (origin_size), c_out, w_out) -> (n, c_out, w_out, *(origin_size))
+        output_weight_graph[:, :, h] = torch.matmul(hook_graph, hook_kernel_weight_s).permute(0, 2, 1).reshape(n, out_channels, output_w, *origin_size)
+        del hook_graph, hook_kernel_weight_s
     return output_weight_graph
 
 
@@ -128,13 +129,14 @@ def avg_pool_2d(
     hook_kernel_weight = hook_kernel_weight[:, :, padding_w : hook_kernel_weight.size(-1) - padding_w]
     for h in range(output_h):
         idx_start, idx_end, idx_start_kernal, idx_end_kernal = __get_h_idx(h, stride_h, padding_h, kernel_h, input_h)
-        # hook_kernel_weight: (w_out, h_pos-, w_in)) -> ((h_pos-, w_in), w_out)
-        hook_kernel_weight_s = hook_kernel_weight[:, :, idx_start_kernal:idx_end_kernal].reshape(output_w, -1).permute(1, 0)
+        # hook_kernel_weight: (w_out, h_pos-, w_in) -> ((h_pos-, w_in), w_out)
+        hook_kernel_weight_s = hook_kernel_weight[:, idx_start_kernal:idx_end_kernal].reshape(output_w, -1).permute(1, 0)
         # pre_graph: (n, c, h_in, w_in, (*origin_size))
         # graph_hook: (n, c, (h_pos-, w_in), (origin_size)) -> (n, c, (origin_size), (h_pos-, w_in))
         hook_graph = weight_graph[:, :, idx_start:idx_end].reshape(n, channels, -1, origin_size.numel()).permute(0, 1, 3, 2)
         # output_weight_graph:(n, c, *(origin_size), w_out) -> (n, c, w_out, *(origin_size))
-        output_weight_graph[:, :, h] = torch.matmul(hook_graph, hook_kernel_weight_s).reshape(n, channels, *origin_size, output_w).permute(0, 1, 5, 2, 3, 4)
+        output_weight_graph[:, :, h] = torch.matmul(hook_graph, hook_kernel_weight_s).permute(0, 1, 3, 2).reshape(n, channels, output_w, *origin_size)
+        del hook_kernel_weight_s, hook_graph
     return output_weight_graph
 
 
