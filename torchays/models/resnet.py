@@ -19,7 +19,8 @@ from torchvision.models.resnet import (
 )
 from torchvision.utils import _log_api_usage_once
 
-from torchays import nn
+from .. import nn
+from ..nn.modules import get_input, WEIGHT_GRAPH, BIAS_GRAPH
 
 __all__ = [
     "ResNet",
@@ -65,7 +66,22 @@ def conv1x1(in_planes: int, out_planes: int, stride: int = 1) -> nn.Conv2d:
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
 
-class BasicBlock(nn.Module):
+class _Block(nn.Module):
+    def _plus(self, input, identity):
+        if self.graphing:
+            x, graph = get_input(input)
+            id_x, id_graph = get_input(identity)
+            o1 = x[0] + id_x[0]
+            o2 = graph[WEIGHT_GRAPH] + id_graph[WEIGHT_GRAPH]
+            o3 = graph[BIAS_GRAPH] + id_graph[BIAS_GRAPH]
+            return o1, {
+                WEIGHT_GRAPH: o2,
+                BIAS_GRAPH: o3,
+            }
+        return input + identity
+
+
+class BasicBlock(_Block):
     expansion: int = 1
 
     def __init__(
@@ -108,13 +124,13 @@ class BasicBlock(nn.Module):
         if self.downsample is not None:
             identity = self.downsample(x)
 
-        out += identity
+        out = self._plus(out, identity)
         out = self.relu(out)
 
         return out
 
 
-class Bottleneck(nn.Module):
+class Bottleneck(_Block):
     # Bottleneck in torchvision places the stride for downsampling at 3x3 convolution(self.conv2)
     # while original implementation places the stride at the first 1x1 convolution(self.conv1)
     # according to "Deep residual learning for image recognition" https://arxiv.org/abs/1512.03385.
@@ -166,7 +182,7 @@ class Bottleneck(nn.Module):
         if self.downsample is not None:
             identity = self.downsample(x)
 
-        out += identity
+        out = self._plus(out, identity)
         out = self.relu(out)
 
         return out

@@ -1,16 +1,13 @@
 import torch
 import torch.nn as nn
 
-from torchays.nn.modules import base
+from .base import Module, get_size_to_one
 
 
-class _BatchNorm(nn.modules.batchnorm._BatchNorm, base.Module):
+class _BatchNorm(Module, nn.modules.batchnorm._BatchNorm):
     def __init__(self, num_features: int, eps: float = 0.00001, momentum: float = 0.1, affine: bool = True, track_running_stats: bool = True, device=None, dtype=None) -> None:
         super().__init__(num_features, eps, momentum, affine, track_running_stats, device, dtype)
         assert self.track_running_stats, "Please set track_running_stats = True"
-
-    def forward(self, input):
-        return self._forward(super().forward, input)
 
     def forward_graph(self, x, weight_graph=None, bias_graph=None):
         """
@@ -19,14 +16,14 @@ class _BatchNorm(nn.modules.batchnorm._BatchNorm, base.Module):
         graph_size: ((*x.shape)), (*origin_size))
         """
         bias_graph = torch.zeros_like(x, device=x.device) if bias_graph is None else bias_graph
-        origin_size = self._get_origin_size(x, weight_graph)
-        bias_graph = super().forward(bias_graph)
+        origin_size = self._origin_size(x, weight_graph)
+        bias_graph = nn.modules.batchnorm._BatchNorm.forward(self, bias_graph)
 
-        size = list(self._get_size_to_one(x.size()[1:]))
+        size = list(get_size_to_one(x.size()[1:]))
         size[0] = -1
 
         weight = self.weight if self.affine else torch.ones(self.num_features, device=x.device)
-        real_weight = (weight / torch.sqrt(self.running_var + self.eps)).view(*size, *self._get_size_to_one(origin_size))
+        real_weight = (weight / torch.sqrt(self.running_var + self.eps)).view(*size, *get_size_to_one(origin_size))
         weight_graph *= real_weight
 
         return weight_graph, bias_graph

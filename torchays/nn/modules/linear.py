@@ -1,13 +1,14 @@
 import torch
 import torch.nn as nn
-from torchays.nn.modules import base
+
+from .base import Module
 
 
-class Linear(nn.Linear, base.Module):
+class Linear(Module, nn.Linear):
     __doc__ = nn.Linear.__doc__
 
-    def forward(self, input):
-        return self._forward(super().forward, input)
+    def __init__(self, in_features: int, out_features: int, bias: bool = True, device=None, dtype=None) -> None:
+        super().__init__(in_features, out_features, bias, device, dtype)
 
     def forward_graph(self, x, weight_graph=None, bias_graph=None):
         """
@@ -16,9 +17,9 @@ class Linear(nn.Linear, base.Module):
         """
         # bias_graph
         bias_graph = torch.zeros_like(x, device=x.device) if bias_graph is None else bias_graph
-        bias_graph = super().forward(bias_graph)
+        bias_graph = nn.Linear.forward(self, bias_graph)
         # weight_graph
-        origin_size = self._get_origin_size(x, weight_graph)
+        origin_size = self._origin_size(x, weight_graph)
         graph_size = (*bias_graph.size(), *origin_size)
         # create weight_graph
         # (n, out_features, (*origin_size))

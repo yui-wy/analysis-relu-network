@@ -1,14 +1,15 @@
-from collections import deque
-import math
 import time
+from collections import deque
 from typing import Callable, Deque, List, Tuple
 
 import numpy as np
 import torch
 from scipy.optimize import minimize
 
-from torchays.analysis.model import Model
-from torchays.analysis.optimization import (
+from ..nn import Module
+from ..utils import get_logger
+from .model import Model
+from .optimization import (
     constraint,
     fun_bound,
     jac_bound,
@@ -22,8 +23,6 @@ from torchays.analysis.optimization import (
     radius_constraint,
     square,
 )
-from torchays.nn import Module
-from torchays.utils import get_logger
 
 
 class RegionSet:

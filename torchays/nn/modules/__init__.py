@@ -1,15 +1,11 @@
-from torchays.nn.modules.activation import LeakyRule, ReLU
-from torchays.nn.modules.base import BIAS_GRAPH, WEIGHT_GRAPH, Module
-from torchays.nn.modules.batchnorm import (
-    BatchNorm1d,
-    BatchNorm2d,
-    BatchNorm3d,
-    BatchNormNone,
-)
-from torchays.nn.modules.container import Sequential
-from torchays.nn.modules.conv import Conv2d
-from torchays.nn.modules.linear import Linear
-from torchays.nn.modules.pooling import AvgPool2d, MaxPool2d
+from .activation import LeakyRule, ReLU
+from .base import BIAS_GRAPH, WEIGHT_GRAPH, Module, get_input, get_origin_size, get_size_to_one
+from .batchnorm import BatchNorm1d, BatchNorm2d, BatchNorm3d, BatchNormNone
+from .container import Sequential
+from .conv import Conv2d
+from .linear import Linear
+from .pooling import AvgPool2d, MaxPool2d
+from .flatten import Flatten
 
 __all__ = [
     "Module",
@@ -24,6 +20,10 @@ __all__ = [
     "Linear",
     "AvgPool2d",
     "MaxPool2d",
+    "get_input",
+    "get_origin_size",
+    "get_size_to_one",
     "BIAS_GRAPH",
     "WEIGHT_GRAPH",
+    "Flatten",
 ]

@@ -1,4 +1,4 @@
-from torchays.graph.plot import (
+from .plot import (
     COLOR,
     color,
     plot_regions_3d,

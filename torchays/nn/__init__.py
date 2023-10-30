@@ -1,4 +1,4 @@
-from torchays.nn.modules import (
+from .modules import (
     BatchNorm1d,
     BatchNorm2d,
     BatchNorm3d,
@@ -11,6 +11,7 @@ from torchays.nn.modules import (
     Linear,
     AvgPool2d,
     MaxPool2d,
+    Flatten,
 )
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "Linear",
     "AvgPool2d",
     "MaxPool2d",
+    "Flatten",
 ]

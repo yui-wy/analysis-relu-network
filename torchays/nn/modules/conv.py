@@ -1,14 +1,13 @@
-from typing import Union
 import torch
 import torch.nn as nn
 from torch.nn.common_types import _size_2_t
 from torch.nn.modules.utils import _pair
 
-from torchays.nn.modules import base
-from torchays.nn.functional import conv2d
+from ..functional import conv2d
+from .base import Module
 
 
-class Conv2d(nn.Conv2d, base.Module):
+class Conv2d(Module, nn.Conv2d):
     __doc__ = nn.Conv2d.__doc__
 
     def __init__(
@@ -31,15 +30,12 @@ class Conv2d(nn.Conv2d, base.Module):
         # TODO: 支持groups
         assert self.groups == 1, "Dont support other mode"
 
-    def forward(self, input: torch.Tensor):
-        return self._forward(super().forward, input)
-
     def forward_graph(self, input: torch.Tensor, weight_graph=None, bias_graph=None):
         # bias_graph
         bias_graph = torch.zeros_like(input, device=input.device) if bias_graph is None else bias_graph
-        bias_graph = super().forward(bias_graph)
+        bias_graph = nn.Conv2d.forward(self, bias_graph)
         # weight_graph
-        origin_size = self._get_origin_size(input, weight_graph)
+        origin_size = self._origin_size(input, weight_graph)
         weight_graph = conv2d(
             weight_graph,
             self.weight,

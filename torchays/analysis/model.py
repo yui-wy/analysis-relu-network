@@ -1,7 +1,8 @@
-from typing import Any, Tuple, Dict
+from typing import Any, Dict, Tuple
 
 import torch
-from torchays.nn import Module
+
+from ..nn import Module
 
 
 class Model(Module):

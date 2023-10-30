@@ -19,7 +19,7 @@ class TestNet(nn.Module):
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=8, kernel_size=3, stride=2, padding=1)
         self.bn1 = nn.BatchNorm2d(num_features=8)
         self.conv2 = nn.Conv2d(in_channels=8, out_channels=16, kernel_size=3, stride=2, padding=1)
-        self.avg = nn.AvgPool2d(2, 1)
+        self.avg = nn.MaxPool2d(2, 1)
         self.linear = nn.Linear(16, 2)
         self.flatten = nn.Flatten(1)
 
