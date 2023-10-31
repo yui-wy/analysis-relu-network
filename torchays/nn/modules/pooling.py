@@ -1,4 +1,5 @@
 import math
+from typing import Tuple
 
 import torch
 import torch.nn as nn
@@ -29,9 +30,9 @@ class AvgPool2d(Module, nn.AvgPool2d):
         self._stride = _pair(stride)
         self._kernel_size = _pair(self.kernel_size)
 
-    def forward_graph(self, input: Tensor, weight_graph=None, bias_graph=None):
+    def forward_graph(self, input: Tensor, weight_graph: Tensor = None, bias_graph: Tensor = None) -> Tuple[Tensor, Tensor]:
         # bias_graph
-        bias_graph = torch.zeros_like(input, device=input.device) if bias_graph is None else bias_graph
+        bias_graph = torch.zeros_like(input, device=input.device, dtype=input.dtype) if bias_graph is None else bias_graph
         bias_graph = nn.AvgPool2d.forward(self, bias_graph)
         # weight_graph
         origin_size = self._origin_size(input, weight_graph)
@@ -47,6 +48,7 @@ class AvgPool2d(Module, nn.AvgPool2d):
             self._padding,
             self._stride,
             input.device,
+            input.dtype,
         )
         return weight_graph, bias_graph
 
@@ -56,14 +58,8 @@ class MaxPool2d(Module, nn.MaxPool2d):
 
     def __init__(self, kernel_size: _size_any_t, stride: _size_any_t | None = None, padding: _size_any_t = 0, dilation: _size_any_t = 1, return_indices: bool = False, ceil_mode: bool = False) -> None:
         super().__init__(kernel_size, stride, padding, dilation, return_indices, ceil_mode)
-        assert not self.ceil_mode, "'ceil_mode' must be False."
-        assert dilation == 1, "Dont support other dilation."
-        self._padding = _pair(padding)
-        self._stride = _pair(stride)
-        self._kernel_size = _pair(self.kernel_size)
-        self._dilation = _pair(dilation)
 
-    def forward_graph(self, input: Tensor, weight_graph: Tensor = None, bias_graph: Tensor = None):
+    def forward_graph(self, input: Tensor, weight_graph: Tensor = None, bias_graph: Tensor = None) -> Tuple[Tensor, Tensor]:
         save = self.return_indices
         if not self.return_indices:
             self.return_indices = True
@@ -73,13 +69,10 @@ class MaxPool2d(Module, nn.MaxPool2d):
             indices,
             weight_graph,
             bias_graph,
-            self._kernel_size,
             origin_size,
             output.size(),
-            self._padding,
-            self._stride,
-            self._dilation,
             input.device,
+            input.dtype,
         )
         self.return_indices = save
         return weight_graph, bias_graph
@@ -90,10 +83,10 @@ class AdaptiveAvgPool2d(Module, nn.AdaptiveAvgPool2d):
         super().__init__(output_size)
         self._output_size = _pair(output_size)
 
-    def forward_graph(self, input: Tensor, weight_graph: Tensor = None, bias_graph: Tensor = None):
+    def forward_graph(self, input: Tensor, weight_graph: Tensor = None, bias_graph: Tensor = None) -> Tuple[Tensor, Tensor]:
         kernel_size, stride, divisor = self._get_meta(input)
         # bias_graph
-        bias_graph = torch.zeros_like(input, device=input.device) if bias_graph is None else bias_graph
+        bias_graph = torch.zeros_like(input, device=input.device, dtype=input.dtype) if bias_graph is None else bias_graph
         bias_graph = nn.AdaptiveAvgPool2d.forward(self, bias_graph)
         # weight_graph
         origin_size = self._origin_size(input, weight_graph)
@@ -108,6 +101,7 @@ class AdaptiveAvgPool2d(Module, nn.AdaptiveAvgPool2d):
             (0, 0),
             stride,
             input.device,
+            input.dtype,
         )
         return weight_graph, bias_graph
 
