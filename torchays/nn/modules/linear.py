@@ -22,14 +22,9 @@ class Linear(Module, nn.Linear):
         bias_graph = nn.Linear.forward(self, bias_graph)
         # weight_graph
         origin_size = self._origin_size(input, weight_graph)
-        # create hook of x
-        # (n, out_features, in_features)
-        hook_x = torch.zeros(input.size(0), self.out_features, self.in_features, device=input.device, dtype=input.dtype) + self.weight
         if weight_graph is None:
             weight_graph = torch.zeros(((*bias_graph.size(), *origin_size)), device=input.device, dtype=input.dtype)
-            weight_graph += hook_x
+            weight_graph += self.weight
         else:
-            weight_graph_s = weight_graph.reshape(weight_graph.size(0), self.in_features, -1)
-            weight_graph = torch.matmul(hook_x, weight_graph_s).reshape(-1, self.out_features, *origin_size)
-
+            weight_graph = torch.einsum("nis,oi -> nos", [weight_graph, self.weight]).reshape(-1, self.out_features, *origin_size)
         return weight_graph, bias_graph
