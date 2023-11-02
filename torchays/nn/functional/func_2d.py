@@ -66,11 +66,6 @@ def _2d_opr_weight(
     h_pad, w_pad = padding
     h_stride, w_stride = stride
     h_k, w_k = kernel_size
-    # ========================2=========================
-    # TODO: 优化内存和速度
-    # (n, (h_k * w_k * in_channels), (h_out * w_out))
-    # (n, in_channels, h_k, w_k, h_out * w_out)
-    print(f"unfold: {n*h_k*w_k*in_channels*h_out*w_out}")
     # output_weight_graph: (n, c_out, h_out, w_out, (*origin_size))
     output_weight_graph = torch.zeros((*output_size, *origin_size), device=device, dtype=dtype)
     # hook_kernel_weight: (w_out, c_out, c_in, k , w_in+2*padding)
