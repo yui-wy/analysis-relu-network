@@ -26,5 +26,6 @@ class Linear(Module, nn.Linear):
             weight_graph = torch.zeros(((*bias_graph.size(), *origin_size)), device=input.device, dtype=input.dtype)
             weight_graph += self.weight
         else:
+            weight_graph = weight_graph.reshape(-1, self.in_features, origin_size.numel())
             weight_graph = torch.einsum("nis,oi -> nos", [weight_graph, self.weight]).reshape(-1, self.out_features, *origin_size)
         return weight_graph, bias_graph
