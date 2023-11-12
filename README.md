@@ -11,13 +11,20 @@ A sample library for linear graph (weight and bias) of DNNs in [PyTorch](https:/
 
 ```python
 __all__ = [
-    'AysReLU',
-    'AysBaseModule', # baseModule for inheritance.
-    'AysBatchNorm1d', 'AysBatchNorm2d', 'AysBatchNorm3d',
-    'AysSequential',
-    'AysConv2d',
-    'AysLinear',
-    'AysAvgPool2d',
+    "Module",
+    "ReLU",
+    "LeakyRule",
+    "BatchNorm1d",
+    "BatchNorm2d",
+    "BatchNorm3d",
+    "BatchNormNone",
+    "Sequential",
+    "Conv2d",
+    "Linear",
+    "AvgPool2d",
+    "MaxPool2d",
+    "AdaptiveAvgPool2d",
+    "Flatten",
 ]
 ```
 

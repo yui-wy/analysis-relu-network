@@ -2,5 +2,5 @@ torch
 polytope
 matplotlib
 numpy
-sklearn
+scikit-learn
 scipy
