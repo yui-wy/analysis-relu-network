@@ -1,6 +1,7 @@
 torch
 polytope
-matplotlib
 numpy
 scikit-learn
 scipy
+cvxopt
+matplotlib==3.6.3

@@ -20,13 +20,17 @@ from torchays.utils import get_logger
 
 GPU_ID = 0
 SEED = 5
-DATASET = MOON
+DATASET = RANDOM
 N_NUM = [16, 16, 16]
+# Dataset
 N_SAMPLES = 1000
 # only GAUSSIAN_QUANTILES
-N_CLASSES = 2
-TAG = f"Linear-{N_NUM}-{DATASET}-{N_SAMPLES}-{SEED}".replace(' ', '')
+N_CLASSES = 3
+# only RANDOM
+IN_FEATURES = 2
 
+# TAG
+TAG = f"Linear-{N_NUM}-{DATASET}-{N_SAMPLES}-{SEED}".replace(' ', '')
 # Training
 MAX_EPOCH = 100
 SAVE_EPOCH = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
@@ -53,7 +57,7 @@ def init():
 
 
 def get_data_set():
-    return simple_get_data(DATASET, N_SAMPLES, 0.2, 5, DATASET_PATH, n_classes=N_CLASSES)
+    return simple_get_data(DATASET, N_SAMPLES, 0.2, 5, DATASET_PATH, n_classes=N_CLASSES, in_features=IN_FEATURES)
 
 
 def accuracy(x, classes):
@@ -80,7 +84,7 @@ def train():
     trainLoader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
     totalStep = math.ceil(len(dataset) / BATCH_SIZE)
 
-    net = TestTNetLinear(2, N_NUM, n_classes).to(device)
+    net = TestTNetLinear(IN_FEATURES, N_NUM, n_classes).to(device)
     optim = torch.optim.Adam(net.parameters(), lr=LR, weight_decay=1e-4, betas=[0.9, 0.999])
     ce = torch.nn.CrossEntropyLoss()
 
@@ -115,10 +119,10 @@ def train():
     print(f'Accuracy: {acc:.4f}')
 
 
-def get_region():
+def get_region(is_draw: bool = False):
     dataset, n_classes = get_data_set()
     val_dataloader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
-    net = TestTNetLinear(2, N_NUM, n_classes).to(device)
+    net = TestTNetLinear(IN_FEATURES, N_NUM, n_classes).to(device)
     au = ReLUNets(device=device)
     model_list = os.listdir(MODEL_DIR)
     with torch.no_grad():
@@ -133,7 +137,7 @@ def get_region():
             model_path = os.path.join(MODEL_DIR, model_name)
             net.load_state_dict(torch.load(model_path))
             acc = val_net(net, val_dataloader).cpu().numpy()
-            print(f'Accuracy: {acc:.4f}')
+            print(f"Accuracy: {acc:.4f}")
 
             funcs, areas, points = [], [], []
 
@@ -142,10 +146,18 @@ def get_region():
                 funcs.append(functions.numpy())
                 areas.append(region.numpy())
 
-            region_num = au.get_region_counts(net, 1.0, input_size=(2,), depth=net.n_relu, region_handler=handler)
-            # draw fig
-            drawReginImage = DrawReginImage(region_num, funcs, areas, points, save_dir, net, n_classes)
-            drawReginImage.draw()
+            region_num = au.get_region_counts(
+                net,
+                bounds=((-1, 1), (-1, 1)),
+                input_size=(IN_FEATURES,),
+                depth=net.n_relu,
+                region_handler=handler,
+            )
+            print(f"Reagin counts: {region_num}")
+            if is_draw:
+                # draw fig
+                drawReginImage = DrawReginImage(region_num, funcs, areas, points, save_dir, net, n_classes)
+                drawReginImage.draw()
             dataSaveDict = {
                 "funcs": funcs,
                 "areas": areas,
@@ -284,12 +296,12 @@ class DrawReginImage:
         return data
 
 
-def main(is_train: bool = True):
+def main(*, is_train: bool = True, is_draw: bool = False):
     init()
     if is_train:
         train()
-    get_region()
+    get_region(is_draw)
 
 
 if __name__ == "__main__":
-    main(True)
+    main(is_train=True, is_draw=True)

@@ -73,10 +73,12 @@ def gaussian_quantiles(
 
 def random(
     n_samples: int = 1000,
+    in_features: int = 2,
 ) -> Tuple[DataFunc, int]:
     def data_fun() -> Tuple[np.ndarray, np.ndarray]:
-        data = np.random.uniform(-1, 1, (n_samples, 2))
+        data = np.random.uniform(-1, 1, (n_samples, in_features))
         classes = np.sign(np.random.uniform(-1, 1, [n_samples]))
+        classes = np.where(classes > 0, 1, 0)
         return data, classes
 
     return data_fun, 2
@@ -124,6 +126,7 @@ def simple_get_data(
     random_state: int,
     data_path: str,
     n_classes: int = 2,
+    in_features: int = 2,
 ) -> Tuple[DataFunc, Dataset]:
     if os.path.exists(data_path):
         data_fun, n_classes = from_path(data_path)
@@ -132,7 +135,7 @@ def simple_get_data(
     if dataset == GAUSSIAN_QUANTILES:
         data_fun, n_classes = save_data(*gaussian_quantiles(n_samples, n_classes=n_classes), save_path=data_path)
     if dataset == RANDOM:
-        data_fun, n_classes = save_data(*random(n_samples), save_path=data_path)
+        data_fun, n_classes = save_data(*random(n_samples, in_features), save_path=data_path)
     if (data_fun is None) or (n_classes is None):
         raise NotImplementedError(f"cannot find the dataset [{dataset}]")
     return Dataset(data_fun), n_classes

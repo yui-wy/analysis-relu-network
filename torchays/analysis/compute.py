@@ -4,6 +4,8 @@ from typing import Callable, Deque, List, Tuple
 
 import numpy as np
 import torch
+
+# TODO: 修改为cvxopt
 from scipy.optimize import minimize
 
 from ..nn import Module
@@ -187,16 +189,15 @@ class ReLUNets:
         functions, region = torch.cat([child_functions, parent_functions], dim=0), torch.cat([child_region, parent_region], dim=0)
         constraint_functions = region.view(-1, 1) * functions
         functions, constraint_functions, region = functions.numpy(), constraint_functions.numpy(), region.numpy()
-        constraint_area = np.ones_like(region)
         # initialize output
         next_functions, next_region, neighbor_region_inner_points = [], [], []
 
         # 1. checking whether the region exists, the inner point will be obtained if existed.
-        r = np.random.uniform(0, self.bound)
+        r = np.random.uniform(0, 1.0)
         next_inner_point, r = self._compute_radius(constraint_functions, np.append(child_inner_point, r))
         result = np.matmul(constraint_functions[:, :-1], next_inner_point.T) + constraint_functions[:, -1]
         result = np.where(result >= -1e-16, 1, 0)
-        if not np.array_equal(result, constraint_area) or r < 10e-10 or r > self.bound:
+        if (0 in result) or r < 1e-10:
             # no region and return
             return None, next_functions, next_region, None, neighbor_region_inner_points
 
@@ -214,6 +215,7 @@ class ReLUNets:
         for i in range(constraint_functions.shape[0]):
             function = square(constraint_functions[i])
             constraints[i]["fun"] = linear(constraint_functions[i])
+            # TODO: 判断f是否在最小构成区域的{f}中, 若存在则标记.
             result = self._minimize(function, next_inner_point, constraints, jac_square(constraint_functions[i]))
             if result.fun > 1e-15:
                 continue
@@ -381,7 +383,7 @@ class ReLUNets:
     def get_region_counts(
         self,
         net: Model,
-        bound: float = 1.0,
+        bounds: float = 1.0,
         depth: int = -1,
         input_size: tuple = (2,),
         region_handler: Callable[[np.ndarray, torch.Tensor, torch.Tensor], None] = None,
@@ -391,23 +393,16 @@ class ReLUNets:
         """
         assert isinstance(net, Module), "the type of net must be \"BaseModule\"."
         assert depth >= 0, "countLayers must >= 0."
-        assert bound > 0, "Please set the bound > 0."
         # initialize the settings
         self.logger.info("Start Get region number.")
-        self.bound = bound
         self.last_depth = depth
         self.net = net.to(self.device).graph()
         self.input_size = input_size
-        self.region_handler = region_handler or self._default_handler()
+        self.region_handler = region_handler or _default_handler()
         self._init_constraints()
-
         # initialize the parameters
-        size_prod = torch.Size(input_size).numel()
-        low_bound_parent_functions = -torch.cat([torch.eye(size_prod), torch.zeros(size_prod, 1) - self.bound], dim=1)
-        upper_bound_parent_functions = torch.cat([torch.eye(size_prod), torch.zeros(size_prod, 1) + self.bound], dim=1)
-        parent_functions = torch.cat([low_bound_parent_functions, upper_bound_parent_functions], dim=0)
-        parent_region = torch.ones(size_prod * 2, dtype=torch.int8)
-        inner_point = np.random.uniform(-self.bound, self.bound, size=(size_prod,))
+        dims = torch.Size(input_size).numel()
+        parent_functions, parent_region, inner_point = _generate_bound_regions(bounds, dims)
         # start
         s_time = time.time()
         region_set = RegionSet(inner_point, parent_functions, parent_region, 0)
@@ -422,5 +417,41 @@ class ReLUNets:
             constraint(fun_bound, jac_bound),
         ]
 
-    def _default_handler(self, point: np.ndarray, functions: torch.Tensor, region: torch.Tensor) -> None:
-        return
+
+def _default_handler(point: np.ndarray, functions: torch.Tensor, region: torch.Tensor) -> None:
+    return
+
+
+def _generate_bound_regions(bounds: float | int | Tuple[Tuple[float, float]], dim: int = 2) -> Tuple[torch.Tensor, torch.Tensor, np.ndarray]:
+    assert dim > 0, f"dim must be more than 0. [dim = {dim}]"
+    handler = _number_bound
+    if isinstance(bounds, tuple):
+        assert len(bounds) == dim, f"length of the bounds must match the dim [dim = {dim}]."
+        handler = _tuple_bounds
+    return handler(bounds, dim)
+
+
+def _tuple_bounds(bounds, dim: int = 2) -> Tuple[torch.Tensor, torch.Tensor, np.ndarray]:
+    inner_point = np.zeros(dim)
+    lows, uppers = torch.zeros(dim), torch.zeros(dim)
+    for i in range(dim):
+        low, upper = bounds[i]
+        if upper < low:
+            low, upper = upper, low
+        lows[i], uppers[i] = low, upper
+        inner_point[i] = np.random.uniform(low, upper)
+    return *_bound_regions(lows, uppers, dim), inner_point
+
+
+def _number_bound(bound, dim: int = 2) -> Tuple[torch.Tensor, torch.Tensor, np.ndarray]:
+    inner_point = np.random.uniform(-bound, bound, size=(dim,))
+    lows, uppers = torch.zeros(dim) - bound, torch.zeros(dim) + bound
+    return *_bound_regions(lows, uppers, dim), inner_point
+
+
+def _bound_regions(lows: torch.Tensor, uppers: torch.Tensor, dim: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    low_bound_functions = torch.cat([torch.eye(dim), -lows.unsqueeze(1)], dim=1)
+    upper_bound_functions = torch.cat([-torch.eye(dim), uppers.unsqueeze(1)], dim=1)
+    functions = torch.cat([low_bound_functions, upper_bound_functions], dim=0)
+    region = torch.ones(dim * 2, dtype=torch.int8)
+    return functions, region
