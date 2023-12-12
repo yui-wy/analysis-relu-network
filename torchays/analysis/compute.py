@@ -1,6 +1,6 @@
 import time
 from collections import deque
-from typing import Callable, Deque, List, Tuple
+from typing import Callable, Deque, List, Tuple, TypeAlias
 
 import numpy as np
 import torch
@@ -383,7 +383,7 @@ class ReLUNets:
     def get_region_counts(
         self,
         net: Model,
-        bounds: float = 1.0,
+        bounds: float | int | Tuple[float, float] | Tuple[Tuple[float, float]] = 1.0,
         depth: int = -1,
         input_size: tuple = (2,),
         region_handler: Callable[[np.ndarray, torch.Tensor, torch.Tensor], None] = None,
@@ -422,31 +422,52 @@ def _default_handler(point: np.ndarray, functions: torch.Tensor, region: torch.T
     return
 
 
-def _generate_bound_regions(bounds: float | int | Tuple[Tuple[float, float]], dim: int = 2) -> Tuple[torch.Tensor, torch.Tensor, np.ndarray]:
+BoundTypes: TypeAlias = Tuple[torch.Tensor, torch.Tensor, np.ndarray]
+
+
+def _generate_bound_regions(
+    bounds: float | int | Tuple[float, float] | List[Tuple[float, float]],
+    dim: int = 2,
+) -> BoundTypes:
     assert dim > 0, f"dim must be more than 0. [dim = {dim}]"
     handler = _number_bound
     if isinstance(bounds, tuple):
-        assert len(bounds) == dim, f"length of the bounds must match the dim [dim = {dim}]."
-        handler = _tuple_bounds
+        if isinstance(bounds[0], tuple):
+            handler = _tuple_bounds
+        else:
+            handler = _tuple_bound
     return handler(bounds, dim)
 
 
-def _tuple_bounds(bounds, dim: int = 2) -> Tuple[torch.Tensor, torch.Tensor, np.ndarray]:
+def _tuple_bound(bounds: Tuple[float, float], dim: int = 2) -> BoundTypes:
+    low, upper = _bound(bounds)
+    inner_point = np.random.uniform(low, upper, size=(dim,))
+    lows, uppers = torch.zeros(dim) + low, torch.zeros(dim) + upper
+    return *_bound_regions(lows, uppers, dim), inner_point
+
+
+def _tuple_bounds(bounds: Tuple[Tuple[float, float]], dim: int = 2) -> BoundTypes:
+    assert len(bounds) == dim, f"length of the bounds must match the dim [dim = {dim}]."
     inner_point = np.zeros(dim)
     lows, uppers = torch.zeros(dim), torch.zeros(dim)
     for i in range(dim):
-        low, upper = bounds[i]
-        if upper < low:
-            low, upper = upper, low
+        low, upper = _bound(bounds[i])
         lows[i], uppers[i] = low, upper
         inner_point[i] = np.random.uniform(low, upper)
     return *_bound_regions(lows, uppers, dim), inner_point
 
 
-def _number_bound(bound, dim: int = 2) -> Tuple[torch.Tensor, torch.Tensor, np.ndarray]:
-    inner_point = np.random.uniform(-bound, bound, size=(dim,))
-    lows, uppers = torch.zeros(dim) - bound, torch.zeros(dim) + bound
-    return *_bound_regions(lows, uppers, dim), inner_point
+def _number_bound(bound: float | int, dim: int = 2) -> BoundTypes:
+    assert len(bound) == 2, f"length of the bounds must be 2. len(bounds) = {len(bound)}."
+    bounds = (-bound, bound)
+    return _tuple_bound(bounds, dim)
+
+
+def _bound(bound: Tuple[float, float]) -> Tuple[float, float]:
+    low, upper = bound
+    if upper < low:
+        low, upper = upper, low
+    return low, upper
 
 
 def _bound_regions(lows: torch.Tensor, uppers: torch.Tensor, dim: int) -> Tuple[torch.Tensor, torch.Tensor]:

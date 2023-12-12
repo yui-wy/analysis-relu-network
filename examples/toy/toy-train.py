@@ -7,10 +7,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polytope as pc
 import torch
-from sklearn.datasets import *
 from torch.utils import data
 
-from dataset import simple_get_data, MOON, GAUSSIAN_QUANTILES, RANDOM
+from dataset import GAUSSIAN_QUANTILES, MOON, RANDOM, simple_get_data
 from torchays import nn
 from torchays.analysis import ReLUNets
 from torchays.graph import COLOR, color, plot_regions, plot_regions_3d
@@ -24,6 +23,7 @@ DATASET = RANDOM
 N_NUM = [16, 16, 16]
 # Dataset
 N_SAMPLES = 1000
+DATASET_BIAS = 0
 # only GAUSSIAN_QUANTILES
 N_CLASSES = 3
 # only RANDOM
@@ -57,7 +57,16 @@ def init():
 
 
 def get_data_set():
-    return simple_get_data(DATASET, N_SAMPLES, 0.2, 5, DATASET_PATH, n_classes=N_CLASSES, in_features=IN_FEATURES)
+    return simple_get_data(
+        DATASET,
+        N_SAMPLES,
+        0.2,
+        5,
+        DATASET_PATH,
+        n_classes=N_CLASSES,
+        in_features=IN_FEATURES,
+        bias=DATASET_BIAS,
+    )
 
 
 def accuracy(x, classes):
@@ -79,96 +88,11 @@ def val_net(net: nn.Module, val_dataloader):
     return val_accuracy_sum
 
 
-def train():
-    dataset, n_classes = get_data_set()
-    trainLoader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
-    totalStep = math.ceil(len(dataset) / BATCH_SIZE)
-
-    net = TestTNetLinear(IN_FEATURES, N_NUM, n_classes).to(device)
-    optim = torch.optim.Adam(net.parameters(), lr=LR, weight_decay=1e-4, betas=[0.9, 0.999])
-    ce = torch.nn.CrossEntropyLoss()
-
-    save_step = [v for v in SAVE_EPOCH if v < 1]
-    steps = [math.floor(v * totalStep) for v in save_step]
-    torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_0.pth'))
-    for epoch in range(MAX_EPOCH):
-        net.train()
-        for j, (x, y) in enumerate(trainLoader, 1):
-            x, y = x.float().to(device), y.long().to(device)
-            x = net(x)
-            loss = ce(x, y)
-            optim.zero_grad()
-            loss.backward()
-            optim.step()
-            acc = accuracy(x, y) / x.size(0)
-
-            if (epoch + 1) == 1 and (j in steps):
-                net.eval()
-                idx = steps.index(j)
-                torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_{save_step[idx]}.pth'))
-                net.train()
-            print(f"Epoch: {epoch+1} / {MAX_EPOCH}, Step: {j} / {totalStep}, Loss: {loss:.4f}, Acc: {acc:.4f}")
-
-        print(f"Epoch: {epoch+1} / {MAX_EPOCH}")
-        if (epoch + 1) in SAVE_EPOCH:
-            print(f"Save net: net_{epoch+1}.pth")
-            net.eval()
-            torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_{epoch+1}.pth'))
-
-    acc = val_net(net, trainLoader).cpu().numpy()
-    print(f'Accuracy: {acc:.4f}')
+def init_net(n_classes: int):
+    return TestTNetLinear(IN_FEATURES, N_NUM, n_classes).to(device)
 
 
-def get_region(is_draw: bool = False):
-    dataset, n_classes = get_data_set()
-    val_dataloader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
-    net = TestTNetLinear(IN_FEATURES, N_NUM, n_classes).to(device)
-    au = ReLUNets(device=device)
-    model_list = os.listdir(MODEL_DIR)
-    with torch.no_grad():
-        for model_name in model_list:
-            sign = float(model_name[4:-4])
-            if sign not in SAVE_EPOCH:
-                continue
-            print(f"Solve fileName: {model_name} ....")
-            save_dir = os.path.join(LAB_DIR, os.path.splitext(model_name)[0])
-            os.makedirs(save_dir, exist_ok=True)
-            au.logger = get_logger(f"region-{os.path.splitext(model_name)[0]}", os.path.join(save_dir, "region.log"))
-            model_path = os.path.join(MODEL_DIR, model_name)
-            net.load_state_dict(torch.load(model_path))
-            acc = val_net(net, val_dataloader).cpu().numpy()
-            print(f"Accuracy: {acc:.4f}")
-
-            funcs, areas, points = [], [], []
-
-            def handler(point, functions, region):
-                points.append(point)
-                funcs.append(functions.numpy())
-                areas.append(region.numpy())
-
-            region_num = au.get_region_counts(
-                net,
-                bounds=((-1, 1), (-1, 1)),
-                input_size=(IN_FEATURES,),
-                depth=net.n_relu,
-                region_handler=handler,
-            )
-            print(f"Reagin counts: {region_num}")
-            if is_draw:
-                # draw fig
-                drawReginImage = DrawReginImage(region_num, funcs, areas, points, save_dir, net, n_classes)
-                drawReginImage.draw()
-            dataSaveDict = {
-                "funcs": funcs,
-                "areas": areas,
-                "points": points,
-                "regionNum": region_num,
-                "accuracy": acc,
-            }
-            torch.save(dataSaveDict, os.path.join(save_dir, "dataSave.pkl"))
-
-
-class DrawReginImage:
+class DrawRegionImage:
     def __init__(
         self,
         region_num,
@@ -192,10 +116,14 @@ class DrawReginImage:
         self.max_bound = max_bound
 
     def draw(self):
-        for draw_fun in [self.draw_region_img, self.draw_region_img_3d, self.draw_region_img_result]:
+        for draw_fun in [
+            self.draw_region_img,
+            self.draw_region_img_3d,
+            self.draw_region_img_result,
+        ]:
             draw_fun()
 
-    def draw_region_img(self, fileName="regionImg.png"):
+    def draw_region_img(self, fileName="region_img.png"):
         fig = plt.figure(0, figsize=(8, 7), dpi=600)
         ax = fig.subplots()
         ax.cla()
@@ -216,7 +144,7 @@ class DrawReginImage:
         z: torch.Tensor = self.net(xy)
         return z.cpu().numpy(), range(self.n_classes)
 
-    def draw_region_img_3d(self, fileName="regionImg3D.png"):
+    def draw_region_img_3d(self, fileName="region_img_3d.png"):
         fig = plt.figure(0)
         ax = fig.add_subplot(projection="3d")
         ax.cla()
@@ -237,7 +165,7 @@ class DrawReginImage:
         plt.clf()
         plt.close()
 
-    def draw_region_img_result(self, color_bar: bool = False, fileName: str = "regionImgResult.png"):
+    def draw_region_img_result(self, color_bar: bool = False, fileName: str = "region_img_result.png"):
         fig = plt.figure(0, figsize=(8, 7), dpi=600)
         ax = fig.subplots()
         ax.cla()
@@ -258,7 +186,6 @@ class DrawReginImage:
             )
         ax.set_xlim(self.min_bound, self.max_bound)
         ax.set_ylim(self.min_bound, self.max_bound)
-        # Tip: draw colorbar
         if color_bar:
             fig.colorbar(img)
         plt.savefig(os.path.join(self.save_dir, fileName))
@@ -296,12 +223,116 @@ class DrawReginImage:
         return data
 
 
-def main(*, is_train: bool = True, is_draw: bool = False):
+def train():
+    dataset, n_classes = get_data_set()
+    trainLoader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+    totalStep = math.ceil(len(dataset) / BATCH_SIZE)
+
+    net = init_net(n_classes)
+    optim = torch.optim.Adam(net.parameters(), lr=LR, weight_decay=1e-4, betas=[0.9, 0.999])
+    ce = torch.nn.CrossEntropyLoss()
+
+    save_step = [v for v in SAVE_EPOCH if v < 1]
+    steps = [math.floor(v * totalStep) for v in save_step]
+    torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_0.pth'))
+    for epoch in range(MAX_EPOCH):
+        net.train()
+        for j, (x, y) in enumerate(trainLoader, 1):
+            x, y = x.float().to(device), y.long().to(device)
+            x = net(x)
+            loss = ce(x, y)
+            optim.zero_grad()
+            loss.backward()
+            optim.step()
+            acc = accuracy(x, y) / x.size(0)
+
+            if (epoch + 1) == 1 and (j in steps):
+                net.eval()
+                idx = steps.index(j)
+                torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_{save_step[idx]}.pth'))
+                net.train()
+            print(f"Epoch: {epoch+1} / {MAX_EPOCH}, Step: {j} / {totalStep}, Loss: {loss:.4f}, Acc: {acc:.4f}")
+
+        print(f"Epoch: {epoch+1} / {MAX_EPOCH}")
+        if (epoch + 1) in SAVE_EPOCH:
+            print(f"Save net: net_{epoch+1}.pth")
+            net.eval()
+            torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_{epoch+1}.pth'))
+
+    acc = val_net(net, trainLoader).cpu().numpy()
+    print(f'Accuracy: {acc:.4f}')
+
+
+def get_region(is_draw: bool = False, lower: int = -1, upper: int = 1):
+    dataset, n_classes = get_data_set()
+    val_dataloader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+    net = init_net(n_classes)
+    au = ReLUNets(device=device)
+    model_list = os.listdir(MODEL_DIR)
+    with torch.no_grad():
+        for model_name in model_list:
+            sign = float(model_name[4:-4])
+            if sign not in SAVE_EPOCH:
+                continue
+            print(f"Solve fileName: {model_name} ....")
+            save_dir = os.path.join(LAB_DIR, os.path.splitext(model_name)[0])
+            os.makedirs(save_dir, exist_ok=True)
+            au.logger = get_logger(f"region-{os.path.splitext(model_name)[0]}", os.path.join(save_dir, "region.log"))
+            model_path = os.path.join(MODEL_DIR, model_name)
+            net.load_state_dict(torch.load(model_path))
+            acc = val_net(net, val_dataloader).cpu().numpy()
+            print(f"Accuracy: {acc:.4f}")
+
+            funcs, areas, points = [], [], []
+
+            def handler(point, functions, region):
+                points.append(point)
+                funcs.append(functions.numpy())
+                areas.append(region.numpy())
+
+            region_num = au.get_region_counts(
+                net,
+                bounds=(lower, upper),
+                input_size=(IN_FEATURES,),
+                depth=net.n_relu,
+                region_handler=handler,
+            )
+            print(f"Region counts: {region_num}")
+            if is_draw:
+                # draw fig
+                drawReginImage = DrawRegionImage(
+                    region_num,
+                    funcs,
+                    areas,
+                    points,
+                    save_dir,
+                    net,
+                    n_classes,
+                    max_bound=upper,
+                    min_bound=lower,
+                )
+                drawReginImage.draw()
+            dataSaveDict = {
+                "funcs": funcs,
+                "areas": areas,
+                "points": points,
+                "regionNum": region_num,
+                "accuracy": acc,
+            }
+            torch.save(dataSaveDict, os.path.join(save_dir, "data_save.pkl"))
+
+
+def main(*, is_train: bool = True, is_draw: bool = False, lower: int = -1, upper: int = 1):
     init()
     if is_train:
         train()
-    get_region(is_draw)
+    get_region(is_draw, lower=lower, upper=upper)
 
 
 if __name__ == "__main__":
-    main(is_train=True, is_draw=True)
+    main(
+        is_train=True,
+        is_draw=True,
+        lower=-1,  # 绘图的下界
+        upper=1,  # 绘图的上界
+    )

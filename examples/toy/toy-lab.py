@@ -5,7 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-DATASET = 'toy'
+from dataset import GAUSSIAN_QUANTILES, MOON, RANDOM
+
+DATASET = MOON
 ROOT_DIR = os.path.abspath("./")
 COLOR = ('lightcoral', 'royalblue', 'limegreen', 'gold', 'darkorchid', 'aqua', 'tomato', 'deeppink', 'teal')
 
@@ -64,7 +66,7 @@ def lab():
         labDir = os.path.join(DatasetDir, tag, 'lab')
         for epochFold in os.listdir(labDir):
             epoch = float(epochFold[4:])
-            pklDict = torch.load(os.path.join(labDir, epochFold, 'dataSave.pkl'))
+            pklDict = torch.load(os.path.join(labDir, epochFold, 'data_save.pkl'))
             labDict[tag][epoch] = pklDict
 
     saveRegionEpochTabel(labDict, saveDir)

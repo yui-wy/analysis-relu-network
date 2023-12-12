@@ -40,13 +40,14 @@ def moon(
     *,
     noise: float = None,
     random_state: int = None,
+    bias: int = 0,
     norm_func: Callable[[np.ndarray], np.ndarray] = _norm,
 ) -> Tuple[DataFunc, int]:
     def data_fun() -> Tuple[np.ndarray, np.ndarray]:
         data, classes = make_moons(n_samples, noise=noise, random_state=random_state)
         if norm_func is not None:
             data = norm_func(data)
-        return data, classes
+        return data + bias, classes
 
     return data_fun, 2
 
@@ -60,13 +61,14 @@ def gaussian_quantiles(
     n_classes: int = 3,
     shuffle: bool = True,
     random_state: int | None = None,
+    bias: int = 0,
     norm_func: Callable[[np.ndarray], np.ndarray] = _norm,
 ) -> Tuple[DataFunc, int]:
     def data_fun() -> Tuple[np.ndarray, np.ndarray]:
         data, classes = make_gaussian_quantiles(mean=mean, cov=cov, n_samples=n_samples, n_features=n_features, n_classes=n_classes, shuffle=shuffle, random_state=random_state)
         if norm_func is not None:
             data = norm_func(data)
-        return data, classes
+        return data + bias, classes
 
     return data_fun, n_classes
 
@@ -74,12 +76,13 @@ def gaussian_quantiles(
 def random(
     n_samples: int = 1000,
     in_features: int = 2,
+    bias: int = 0,
 ) -> Tuple[DataFunc, int]:
     def data_fun() -> Tuple[np.ndarray, np.ndarray]:
         data = np.random.uniform(-1, 1, (n_samples, in_features))
         classes = np.sign(np.random.uniform(-1, 1, [n_samples]))
         classes = np.where(classes > 0, 1, 0)
-        return data, classes
+        return data + bias, classes
 
     return data_fun, 2
 
@@ -127,15 +130,16 @@ def simple_get_data(
     data_path: str,
     n_classes: int = 2,
     in_features: int = 2,
+    bias: int = 0,
 ) -> Tuple[DataFunc, Dataset]:
     if os.path.exists(data_path):
         data_fun, n_classes = from_path(data_path)
     if dataset == MOON:
-        data_fun, n_classes = save_data(*moon(n_samples, noise=noise, random_state=random_state), save_path=data_path)
+        data_fun, n_classes = save_data(*moon(n_samples, noise=noise, random_state=random_state, bias=bias), save_path=data_path)
     if dataset == GAUSSIAN_QUANTILES:
-        data_fun, n_classes = save_data(*gaussian_quantiles(n_samples, n_classes=n_classes), save_path=data_path)
+        data_fun, n_classes = save_data(*gaussian_quantiles(n_samples, n_classes=n_classes, bias=bias), save_path=data_path)
     if dataset == RANDOM:
-        data_fun, n_classes = save_data(*random(n_samples, in_features), save_path=data_path)
+        data_fun, n_classes = save_data(*random(n_samples, in_features, bias=bias), save_path=data_path)
     if (data_fun is None) or (n_classes is None):
         raise NotImplementedError(f"cannot find the dataset [{dataset}]")
     return Dataset(data_fun), n_classes
