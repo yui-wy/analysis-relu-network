@@ -48,10 +48,14 @@ DATASET_PATH = os.path.join(SAVE_DIR, "dataset.pkl")
 device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
 
 
-def init():
+def _init_seed():
     torch.manual_seed(SEED)
     torch.cuda.manual_seed_all(SEED)
     np.random.seed(SEED)
+
+
+def init():
+    _init_seed()
     for dir in [SAVE_DIR, MODEL_DIR, LAB_DIR]:
         os.makedirs(dir, exist_ok=True)
 
@@ -75,7 +79,7 @@ def accuracy(x, classes):
     return torch.sum(eq).float()
 
 
-def val_net(net: nn.Module, val_dataloader):
+def val_net(net: nn.Module, val_dataloader: data.DataLoader):
     net.eval()
     with torch.no_grad():
         val_accuracy_sum = 0
@@ -225,7 +229,7 @@ class DrawRegionImage:
 
 def train():
     dataset, n_classes = get_data_set()
-    trainLoader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+    train_loader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
     totalStep = math.ceil(len(dataset) / BATCH_SIZE)
 
     net = init_net(n_classes)
@@ -237,7 +241,7 @@ def train():
     torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_0.pth'))
     for epoch in range(MAX_EPOCH):
         net.train()
-        for j, (x, y) in enumerate(trainLoader, 1):
+        for j, (x, y) in enumerate(train_loader, 1):
             x, y = x.float().to(device), y.long().to(device)
             x = net(x)
             loss = ce(x, y)
@@ -259,14 +263,14 @@ def train():
             net.eval()
             torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_{epoch+1}.pth'))
 
-    acc = val_net(net, trainLoader).cpu().numpy()
+    acc = val_net(net, train_loader).cpu().numpy()
     print(f'Accuracy: {acc:.4f}')
 
 
 def get_region(is_draw: bool = False, lower: int = -1, upper: int = 1):
     dataset, n_classes = get_data_set()
     val_dataloader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
-    net = init_net(n_classes)
+    net = init_net(n_classes).eval()
     au = ReLUNets(device=device)
     model_list = os.listdir(MODEL_DIR)
     with torch.no_grad():
@@ -326,6 +330,7 @@ def main(*, is_train: bool = True, is_draw: bool = False, lower: int = -1, upper
     init()
     if is_train:
         train()
+    _init_seed()
     get_region(is_draw, lower=lower, upper=upper)
 
 

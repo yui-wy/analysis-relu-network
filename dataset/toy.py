@@ -131,7 +131,7 @@ def simple_get_data(
     n_classes: int = 2,
     in_features: int = 2,
     bias: int = 0,
-) -> Tuple[DataFunc, Dataset]:
+) -> Tuple[Dataset, int]:
     if os.path.exists(data_path):
         data_fun, n_classes = from_path(data_path)
     if dataset == MOON:
