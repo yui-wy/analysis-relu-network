@@ -20,7 +20,7 @@ from torchays.utils import get_logger
 GPU_ID = 0
 SEED = 5
 DATASET = RANDOM
-N_NUM = [16, 16, 16]
+N_LAYERS = [16, 16, 16]
 # Dataset
 N_SAMPLES = 1000
 DATASET_BIAS = 0
@@ -30,7 +30,7 @@ N_CLASSES = 3
 IN_FEATURES = 2
 
 # TAG
-TAG = f"Linear-{N_NUM}-{DATASET}-{N_SAMPLES}-{SEED}".replace(' ', '')
+TAG = f"Linear-{N_LAYERS}-{DATASET}-{N_SAMPLES}-{SEED}".replace(' ', '')
 # Training
 MAX_EPOCH = 100
 SAVE_EPOCH = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
@@ -89,7 +89,7 @@ def val_net(net: nn.Module, val_dataloader):
 
 
 def init_net(n_classes: int):
-    return TestTNetLinear(IN_FEATURES, N_NUM, n_classes).to(device)
+    return TestTNetLinear(IN_FEATURES, N_LAYERS, n_classes).to(device)
 
 
 class DrawRegionImage:

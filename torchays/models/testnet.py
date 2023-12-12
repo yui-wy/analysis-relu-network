@@ -40,6 +40,7 @@ class TestTNetLinear(nn.Module):
     def forward_graph_Layer(self, x, depth=0):
         assert depth >= 0, "'layer' must be greater than 0."
         x = self._modules['0'](x)
+        x = self._modules["0_norm"](x)
         if depth == 0:
             return x
         x = self.relu(x)
