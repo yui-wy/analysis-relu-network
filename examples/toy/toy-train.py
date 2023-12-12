@@ -119,12 +119,11 @@ class DrawRegionImage:
         self.min_bound = min_bound
         self.max_bound = max_bound
 
-    def draw(self):
-        for draw_fun in [
-            self.draw_region_img,
-            self.draw_region_img_3d,
-            self.draw_region_img_result,
-        ]:
+    def draw(self, img_3d: bool = False):
+        draw_funs = [self.draw_region_img, self.draw_region_img_result]
+        if img_3d:
+            draw_funs.append(self.draw_region_img_3d)
+        for draw_fun in draw_funs:
             draw_fun()
 
     def draw_region_img(self, fileName="region_img.png"):
