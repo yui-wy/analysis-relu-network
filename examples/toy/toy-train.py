@@ -11,7 +11,7 @@ from torch.utils import data
 
 from dataset import GAUSSIAN_QUANTILES, MOON, RANDOM, simple_get_data
 from torchays import nn
-from torchays.analysis import ReLUNets
+from torchays.analysis import Handler, ReLUNets
 from torchays.graph import COLOR, color, plot_regions, plot_regions_3d
 from torchays.models.testnet import TestTNetLinear
 from torchays.nn import Module
@@ -81,14 +81,13 @@ def accuracy(x, classes):
 
 def val_net(net: nn.Module, val_dataloader: data.DataLoader):
     net.eval()
-    with torch.no_grad():
-        val_accuracy_sum = 0
-        for x, y in val_dataloader:
-            x, y = x.float().to(device), y.long().to(device)
-            x = net(x)
-            val_acc = accuracy(x, y)
-            val_accuracy_sum += val_acc
-        val_accuracy_sum /= len(val_dataloader.dataset)
+    val_accuracy_sum = 0
+    for x, y in val_dataloader:
+        x, y = x.float().to(device), y.long().to(device)
+        x = net(x)
+        val_acc = accuracy(x, y)
+        val_accuracy_sum += val_acc
+    val_accuracy_sum /= len(val_dataloader.dataset)
     return val_accuracy_sum
 
 
@@ -228,7 +227,7 @@ class DrawRegionImage:
 
 def train():
     dataset, n_classes = get_data_set()
-    train_loader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+    trainLoader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
     totalStep = math.ceil(len(dataset) / BATCH_SIZE)
 
     net = init_net(n_classes)
@@ -240,7 +239,7 @@ def train():
     torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_0.pth'))
     for epoch in range(MAX_EPOCH):
         net.train()
-        for j, (x, y) in enumerate(train_loader, 1):
+        for j, (x, y) in enumerate(trainLoader, 1):
             x, y = x.float().to(device), y.long().to(device)
             x = net(x)
             loss = ce(x, y)
@@ -261,15 +260,16 @@ def train():
             print(f"Save net: net_{epoch+1}.pth")
             net.eval()
             torch.save(net.state_dict(), os.path.join(MODEL_DIR, f'net_{epoch+1}.pth'))
-
-    acc = val_net(net, train_loader).cpu().numpy()
-    print(f'Accuracy: {acc:.4f}')
+    with torch.no_grad():
+        acc = val_net(net, trainLoader).cpu().numpy()
+        print(f'Accuracy: {acc:.4f}')
 
 
 def get_region(is_draw: bool = False, lower: int = -1, upper: int = 1):
     dataset, n_classes = get_data_set()
     val_dataloader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
-    net = init_net(n_classes).eval()
+
+    net = init_net(n_classes)
     au = ReLUNets(device=device)
     model_list = os.listdir(MODEL_DIR)
     with torch.no_grad():
@@ -285,29 +285,23 @@ def get_region(is_draw: bool = False, lower: int = -1, upper: int = 1):
             net.load_state_dict(torch.load(model_path))
             acc = val_net(net, val_dataloader).cpu().numpy()
             print(f"Accuracy: {acc:.4f}")
-
-            funcs, areas, points = [], [], []
-
-            def handler(point, functions, region):
-                points.append(point)
-                funcs.append(functions.numpy())
-                areas.append(region.numpy())
-
+            handler = Handler()
             region_num = au.get_region_counts(
                 net,
                 bounds=(lower, upper),
                 input_size=(IN_FEATURES,),
                 depth=net.n_relu,
-                region_handler=handler,
+                region_handler=handler.region_handler,
+                inner_hypeplanes_handler=handler.inner_hypeplanes_handler,
             )
             print(f"Region counts: {region_num}")
             if is_draw:
                 # draw fig
                 drawReginImage = DrawRegionImage(
                     region_num,
-                    funcs,
-                    areas,
-                    points,
+                    handler.funs,
+                    handler.regions,
+                    handler.points,
                     save_dir,
                     net,
                     n_classes,
@@ -316,9 +310,9 @@ def get_region(is_draw: bool = False, lower: int = -1, upper: int = 1):
                 )
                 drawReginImage.draw()
             dataSaveDict = {
-                "funcs": funcs,
-                "areas": areas,
-                "points": points,
+                "funcs": handler.funs,
+                "areas": handler.regions,
+                "points": handler.points,
                 "regionNum": region_num,
                 "accuracy": acc,
             }
@@ -335,8 +329,8 @@ def main(*, is_train: bool = True, is_draw: bool = False, lower: int = -1, upper
 
 if __name__ == "__main__":
     main(
-        is_train=True,
+        is_train=False,
         is_draw=True,
-        lower=-1,  # 绘图的下界
-        upper=1,  # 绘图的上界
+        lower=0,  # 绘图的下界
+        upper=2,  # 绘图的上界
     )

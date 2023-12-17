@@ -4,8 +4,6 @@ from typing import Callable, Deque, List, Tuple, TypeAlias
 
 import numpy as np
 import torch
-
-# TODO: 修改为cvxopt
 from scipy.optimize import minimize
 
 from ..nn import Module
@@ -26,12 +24,27 @@ from .optimization import (
     square,
 )
 
+RegionHandler: TypeAlias = Callable[[np.ndarray, torch.Tensor, torch.Tensor], None]
 
-def _default_handler(point: np.ndarray, functions: torch.Tensor, region: torch.Tensor) -> None:
+
+def _default_region_handler(
+    point: np.ndarray,
+    functions: torch.Tensor,
+    region: torch.Tensor,
+) -> None:
     return
 
 
-def _default_inner_hypeplanes_handler(p_funs: torch.Tensor, p_regions: torch.Tensor, c_funs: torch.Tensor, depth: int) -> None:
+InnerHypeplanesHandler: TypeAlias = Callable[[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, int], None]
+
+
+def _default_inner_hypeplanes_handler(
+    c_funs: torch.Tensor,
+    p_funs: torch.Tensor,
+    p_regions: torch.Tensor,
+    intersect_funs: torch.Tensor,
+    depth: int,
+) -> None:
     return
 
 
@@ -169,7 +182,7 @@ class ReLUNets:
     def _minimize(self, function, x0, constraints, jac, method="SLSQP", tol=1e-20, options={"maxiter": 100}):
         return minimize(function, x0, method=method, constraints=constraints, jac=jac, tol=tol, options=options)
 
-    @_log_time("find child region inner point", 2, False)
+    @_log_time("find child region inner point", 2, True)
     def _find_region_inner_point(self, functions: np.ndarray, init_point: np.ndarray) -> Tuple[np.ndarray, float]:
         """
         Calculate the max radius of the insphere in the region to make the radius less than the distance of the insphere center to the all functions
@@ -195,6 +208,7 @@ class ReLUNets:
             for i in range(functions.shape[0])
         ]
         constraints.extend(self.constraints)
+        # TODO: 质心寻找, 非优化方法
         result = self._minimize(radius(), x, constraints, jac_radius(functions[0]), tol=1e-10)
         inner_point, r = result.x[:-1], result.x[-1]
         result = np.matmul(functions[:, :-1], inner_point.T) + functions[:, -1]
@@ -212,6 +226,7 @@ class ReLUNets:
         child_region: torch.Tensor,
         next_inner_point: np.ndarray,
     ):
+        """获取区域内的一点, 并且得到区域的边界"""
         o_functions, o_region, neighbor_regions = [], [], []
         filter_region = torch.zeros_like(child_region).type(torch.int8)
         constraints = [
@@ -329,16 +344,16 @@ class ReLUNets:
         """
         验证hypeplane arrangement的存在性(子平面, 是否在父区域上具有交集)
         """
-        child_functions, child_inner_points = self._compute_intersect(child_functions, parent_functions, parent_region, inner_point)
-        self.inner_hypeplanes_handler(parent_functions, parent_region, child_functions, depth)
-        if child_functions is None:
+        intersect_funs, intersect_funs_points = self._compute_intersect(child_functions, parent_functions, parent_region, inner_point)
+        self.inner_hypeplanes_handler(child_functions, parent_functions, parent_region, intersect_funs, depth)
+        if intersect_funs is None:
             return self._layer_region_counts(inner_point, parent_functions, parent_region, depth, set_register)
         # Regist some areas in WapperRegion for iterate.
         counts = 0
-        child_regions = self._get_regions(child_inner_points, child_functions)
+        child_regions = self._get_regions(intersect_funs_points, intersect_funs)
         layer_regions = WapperRegion(child_regions)
         for child_region in layer_regions:
-            c_inner_point, c_functions, c_region, filter_region, neighbor_regions = self._optimize_child_region(child_functions, child_region, parent_functions, parent_region, inner_point)
+            c_inner_point, c_functions, c_region, filter_region, neighbor_regions = self._optimize_child_region(intersect_funs, child_region, parent_functions, parent_region, inner_point)
             if len(c_functions) == 0:
                 continue
             # Add the region to prevent counting again.
@@ -402,8 +417,8 @@ class ReLUNets:
         bounds: float | int | Tuple[float, float] | Tuple[Tuple[float, float]] = 1.0,
         depth: int = -1,
         input_size: tuple = (2,),
-        region_handler: Callable[[np.ndarray, torch.Tensor, torch.Tensor], None] = _default_handler,
-        inner_hypeplanes_handler: Callable[[torch.Tensor, torch.Tensor, torch.Tensor, int], None] = _default_inner_hypeplanes_handler,
+        region_handler: RegionHandler = _default_region_handler,
+        inner_hypeplanes_handler: InnerHypeplanesHandler = _default_inner_hypeplanes_handler,
     ):
         """
         目前只支持方形的输入空间画图，需要修改。
