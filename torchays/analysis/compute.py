@@ -8,6 +8,7 @@ from scipy.optimize import minimize
 
 from ..nn import Module
 from ..utils import get_logger
+from .handler import BaseHandler, DefaultHandler
 from .model import Model
 from .optimization import (
     constraint,
@@ -23,29 +24,6 @@ from .optimization import (
     radius_constraint,
     square,
 )
-
-RegionHandler: TypeAlias = Callable[[np.ndarray, torch.Tensor, torch.Tensor], None]
-
-
-def _default_region_handler(
-    point: np.ndarray,
-    functions: torch.Tensor,
-    region: torch.Tensor,
-) -> None:
-    return
-
-
-InnerHypeplanesHandler: TypeAlias = Callable[[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, int], None]
-
-
-def _default_inner_hypeplanes_handler(
-    c_funs: torch.Tensor,
-    p_funs: torch.Tensor,
-    p_regions: torch.Tensor,
-    intersect_funs: torch.Tensor,
-    depth: int,
-) -> None:
-    return
 
 
 class RegionSet:
@@ -342,25 +320,27 @@ class ReLUNets:
         set_register: Callable[[np.ndarray, torch.Tensor, torch.Tensor, int], None],
     ):
         """
-        验证hypeplane arrangement的存在性(子平面, 是否在父区域上具有交集)
+        验证hyperplane arrangement的存在性(子平面, 是否在父区域上具有交集)
         """
         intersect_funs, intersect_funs_points = self._compute_intersect(child_functions, parent_functions, parent_region, inner_point)
-        self.inner_hypeplanes_handler(child_functions, parent_functions, parent_region, intersect_funs, depth)
+        counts, n_regions = 0, 0
         if intersect_funs is None:
-            return self._layer_region_counts(inner_point, parent_functions, parent_region, depth, set_register)
-        # Regist some areas in WapperRegion for iterate.
-        counts = 0
-        child_regions = self._get_regions(intersect_funs_points, intersect_funs)
-        layer_regions = WapperRegion(child_regions)
-        for child_region in layer_regions:
-            c_inner_point, c_functions, c_region, filter_region, neighbor_regions = self._optimize_child_region(intersect_funs, child_region, parent_functions, parent_region, inner_point)
-            if len(c_functions) == 0:
-                continue
-            # Add the region to prevent counting again.
-            layer_regions.update_filter(filter_region)
-            # Regist new regions for iterate.
-            layer_regions.regist_regions(neighbor_regions)
-            counts += self._layer_region_counts(c_inner_point, c_functions, c_region, depth, set_register)
+            counts += self._layer_region_counts(inner_point, parent_functions, parent_region, depth, set_register)
+        else:
+            # Regist some areas in WapperRegion for iterate.
+            child_regions = self._get_regions(intersect_funs_points, intersect_funs)
+            layer_regions = WapperRegion(child_regions)
+            for child_region in layer_regions:
+                c_inner_point, c_functions, c_region, filter_region, neighbor_regions = self._optimize_child_region(intersect_funs, child_region, parent_functions, parent_region, inner_point)
+                if len(c_functions) == 0:
+                    continue
+                # Add the region to prevent counting again.
+                layer_regions.update_filter(filter_region)
+                # Regist new regions for iterate.
+                layer_regions.regist_regions(neighbor_regions)
+                n_regions += 1
+                counts += self._layer_region_counts(c_inner_point, c_functions, c_region, depth, set_register)
+        self.handler.inner_hyperplanes_handler(parent_functions, parent_region, child_functions, intersect_funs, n_regions, depth)
         return counts
 
     def _get_regions(self, x: torch.Tensor, functions: torch.Tensor) -> torch.Tensor:
@@ -379,7 +359,7 @@ class ReLUNets:
     ) -> int:
         if depth == self.last_depth:
             # last layer
-            self.region_handler(inner_point, functions, region)
+            self.handler.region_handler(functions, region, inner_point)
             return 1
         set_register(inner_point, functions, region, depth + 1)
         return 0
@@ -417,8 +397,7 @@ class ReLUNets:
         bounds: float | int | Tuple[float, float] | Tuple[Tuple[float, float]] = 1.0,
         depth: int = -1,
         input_size: tuple = (2,),
-        region_handler: RegionHandler = _default_region_handler,
-        inner_hypeplanes_handler: InnerHypeplanesHandler = _default_inner_hypeplanes_handler,
+        handler: BaseHandler = DefaultHandler(),
     ):
         """
         目前只支持方形的输入空间画图，需要修改。
@@ -430,8 +409,7 @@ class ReLUNets:
         self.last_depth = depth
         self.net = net.to(self.device).graph()
         self.input_size = input_size
-        self.region_handler = region_handler
-        self.inner_hypeplanes_handler = inner_hypeplanes_handler
+        self.handler = handler
         self._init_constraints()
         # initialize the parameters
         dim = torch.Size(input_size).numel()

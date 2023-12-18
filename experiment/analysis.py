@@ -6,10 +6,10 @@ import numpy as np
 import torch
 
 from dataset import GAUSSIAN_QUANTILES, MOON, RANDOM
+from torchays.graph import COLOR
 
 DATASET = MOON
 ROOT_DIR = os.path.abspath("./")
-COLOR = ('lightcoral', 'royalblue', 'limegreen', 'gold', 'darkorchid', 'aqua', 'tomato', 'deeppink', 'teal')
 
 
 class default_plt:
@@ -50,7 +50,7 @@ def default(savePath, xlabel='', ylabel='', mode='png', isGray=False, isLegend=T
     return default_plt(savePath, xlabel, ylabel, mode, isGray, isLegend, isGrid)
 
 
-def lab():
+def analysis():
     labDict = {}
     DatasetDir = os.path.join(ROOT_DIR, 'cache', DATASET)
     saveDir = os.path.join(DatasetDir, "All")
@@ -181,7 +181,3 @@ def drawDataSet(dataset, saveDir):
         ax.set_ylim(-1, 1)
         for i in range(n_classes):
             ax.scatter(x[y == i, 0], x[y == i, 1], color=COLOR[i])
-
-
-if __name__ == "__main__":
-    lab()

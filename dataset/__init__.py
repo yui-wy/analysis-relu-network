@@ -4,6 +4,7 @@ from dataset.toy import (
     GAUSSIAN_QUANTILES,
     MOON,
     RANDOM,
+    Dataset,
     from_path,
     gaussian_quantiles,
     moon,
@@ -22,4 +23,5 @@ __all__ = [
     "MOON",
     "GAUSSIAN_QUANTILES",
     "RANDOM",
+    "Dataset",
 ]

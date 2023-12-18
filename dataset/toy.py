@@ -16,11 +16,12 @@ RANDOM: DataType = "random"
 
 
 class Dataset(data.Dataset):
-    def __init__(self, data_fun: DataFunc) -> None:
+    def __init__(self, name: DataType, data_fun: DataFunc) -> None:
         super().__init__()
+        self.name = name
         self.data, self.classes = data_fun()
 
-    def __getitem__(self, index):
+    def __getitem__(self, index) -> Tuple[torch.Tensor, torch.Tensor]:
         x, target = torch.from_numpy(self.data[index]), self.classes[index]
         return x, target
 
@@ -142,4 +143,4 @@ def simple_get_data(
         data_fun, n_classes = save_data(*random(n_samples, in_features, bias=bias), save_path=data_path)
     if (data_fun is None) or (n_classes is None):
         raise NotImplementedError(f"cannot find the dataset [{dataset}]")
-    return Dataset(data_fun), n_classes
+    return Dataset(dataset, data_fun), n_classes
