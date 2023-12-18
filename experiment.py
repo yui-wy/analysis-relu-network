@@ -3,12 +3,19 @@ import os
 import numpy as np
 import torch
 
-from dataset import GAUSSIAN_QUANTILES, MOON, RANDOM, simple_get_data
+from dataset import (
+    GAUSSIAN_QUANTILES,
+    MOON,
+    RANDOM,
+    simple_get_data,
+)
 from experiment import Experiment
+from torchays import nn
+from torchays.models import TestTNetLinear
 
 GPU_ID = 0
 SEED = 5
-DATASET = RANDOM
+DATASET = MOON
 N_LAYERS = [16, 16, 16]
 # Dataset
 N_SAMPLES = 1000
@@ -24,14 +31,22 @@ BATCH_SIZE = 32
 LR = 1e-3
 BOUND = (-1, 1)
 
+# is training the network.
 IS_TRAIN = True
+# is drawing the region picture. Only for 2d input.
 IS_DRAW = True
+# is handlering the hyperplanes arrangement.
+IS_HPAS = True
 
 
 def init_fun():
     torch.manual_seed(SEED)
     torch.cuda.manual_seed_all(SEED)
     np.random.seed(SEED)
+
+
+def net(n_classes: int) -> nn.Module:
+    return TestTNetLinear(IN_FEATURES, N_LAYERS, n_classes)
 
 
 def dataset(save_dir: str, name: str = "dataset.pkl"):
@@ -57,22 +72,21 @@ if __name__ == "__main__":
     device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
     exp = Experiment(
         save_dir=save_dir,
+        net=net,
+        dataset=dataset(save_dir),
         init_fun=init_fun,
-        n_layers=N_LAYERS,
-        in_features=IN_FEATURES,
         save_epoch=SAVE_EPOCH,
         device=device,
     )
     if IS_TRAIN:
         exp.train(
-            dataset=dataset(save_dir),
             max_epoch=MAX_EPOCH,
             batch_size=BATCH_SIZE,
             lr=LR,
         )
     exp.linear_region(
-        dataset=dataset(save_dir),
         bounds=BOUND,
         is_draw=IS_DRAW,
+        is_hpas=IS_HPAS,
     )
     exp()

@@ -13,8 +13,7 @@ from torch.utils import data
 from dataset import Dataset
 from torchays import nn
 from torchays.analysis import BaseHandler, Model, ReLUNets
-from torchays.graph import COLOR, color, plot_regions, plot_regions_3d
-from torchays.models.testnet import TestTNetLinear
+from torchays.graph import COLOR, color, plot_region, plot_regions, plot_regions_3d
 from torchays.utils import get_logger
 
 
@@ -29,22 +28,25 @@ class _base:
         self,
         save_dir: str,
         *,
+        net: Callable[[int], Model] = None,
         dataset: Callable[..., Tuple[Dataset, int]] = None,
-        n_layers: List[int] = [16, 16, 16],
-        in_features: int = 2,
         save_epoch: List[int] = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100],
         device: torch.device = torch.device('cpu'),
     ) -> None:
         self.save_dir = save_dir
-        self.n_layers = n_layers
-        self.in_features = in_features
+        self.net = net
+        self.dataset = dataset
         self.save_epoch = save_epoch
         self.device = device
-        self.dataset = dataset
 
-    def _init(self, dataset: Dataset):
-        self.tag = f"Linear-{self.n_layers}-{dataset.name}".replace(' ', '')
-        self.root_dir = os.path.join(self.save_dir, self.tag)
+    def _init_model(self):
+        dataset, n_classes = self.dataset()
+        net = self.net(n_classes).to(self.device)
+        self._init_dir(net.name)
+        return net, dataset, n_classes
+
+    def _init_dir(self, tag):
+        self.root_dir = os.path.join(self.save_dir, tag)
         self.model_dir = os.path.join(self.root_dir, "model")
         self.experiment_dir = os.path.join(self.root_dir, "experiment")
         for dir in [
@@ -53,9 +55,6 @@ class _base:
             self.experiment_dir,
         ]:
             os.makedirs(dir, exist_ok=True)
-
-    def init_net(self, n_classes: int) -> nn.Module:
-        return TestTNetLinear(self.in_features, self.n_layers, n_classes).to(self.device)
 
     def val_net(self, net: nn.Module, val_dataloader: data.DataLoader) -> torch.Tensor:
         net.eval()
@@ -73,10 +72,9 @@ class TrainToy(_base):
     def __init__(
         self,
         save_dir: str,
+        net: Callable[[int], Model],
         dataset: Callable[..., Tuple[Dataset, int]],
         *,
-        n_layers: List[int] = [16, 16, 16],
-        in_features: int = 2,
         save_epoch: List[int] = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100],
         max_epoch: int = 100,
         batch_size: int = 32,
@@ -85,9 +83,8 @@ class TrainToy(_base):
     ) -> None:
         super().__init__(
             save_dir,
+            net=net,
             dataset=dataset,
-            n_layers=n_layers,
-            in_features=in_features,
             save_epoch=save_epoch,
             device=device,
         )
@@ -96,12 +93,10 @@ class TrainToy(_base):
         self.lr = lr
 
     def train(self):
-        dataset, n_classes = self.dataset()
-        self._init(dataset=dataset)
+        net, dataset, n_classes = self._init_model()
         trainLoader = data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True, pin_memory=True)
         totalStep = math.ceil(len(dataset) / self.batch_size)
 
-        net: nn.Module = self.init_net(n_classes)
         optim = torch.optim.Adam(net.parameters(), lr=self.lr, weight_decay=1e-4, betas=[0.9, 0.999])
         ce = torch.nn.CrossEntropyLoss()
 
@@ -148,15 +143,18 @@ class DrawRegionImage:
         net: nn.Module,
         n_classes=2,
         bounds=(-1, 1),
+        device=torch.device("cpu"),
     ) -> None:
         self.region_num = region_num
         self.funcs = funcs
         self.regions = regions
         self.points = points
         self.save_dir = save_dir
-        self.net = net
+        self.net = net.to(device).eval()
         self.n_classes = n_classes
+        self.bounds = bounds
         self.min_bound, self.max_bound = bounds
+        self.device = device
 
     def draw(self, img_3d: bool = False):
         draw_funs = [self.draw_region_img, self.draw_region_img_result]
@@ -174,15 +172,15 @@ class DrawRegionImage:
             self.funcs,
             self.regions,
             ax=ax,
-            xlim=[self.min_bound, self.max_bound],
-            ylim=[self.min_bound, self.max_bound],
+            xlim=self.bounds,
+            ylim=self.bounds,
         )
         plt.savefig(os.path.join(self.save_dir, fileName))
         plt.clf()
         plt.close()
 
     def _z_fun(self, xy: np.ndarray) -> Tuple[np.ndarray, int]:
-        xy = torch.from_numpy(xy).to(device).float()
+        xy = torch.from_numpy(xy).to(self.device).float()
         z: torch.Tensor = self.net(xy)
         return z.cpu().numpy(), range(self.n_classes)
 
@@ -200,8 +198,8 @@ class DrawRegionImage:
             color=color,
             edgecolor="grey",
             linewidth=0.1,
-            xlim=[self.min_bound, self.max_bound],
-            ylim=[self.min_bound, self.max_bound],
+            xlim=self.bounds,
+            ylim=self.bounds,
         )
         plt.savefig(os.path.join(self.save_dir, fileName))
         plt.clf()
@@ -226,8 +224,8 @@ class DrawRegionImage:
                 linewidth=0.3,
                 edgecolor='black',
             )
-        ax.set_xlim(self.min_bound, self.max_bound)
-        ax.set_ylim(self.min_bound, self.max_bound)
+        ax.set_xlim(*self.bounds)
+        ax.set_ylim(*self.bounds)
         if color_bar:
             fig.colorbar(img)
         plt.savefig(os.path.join(self.save_dir, fileName))
@@ -261,7 +259,7 @@ class DrawRegionImage:
         X1, X2 = np.meshgrid(x1, x2)
         X1, X2 = X1.flatten(), X2.flatten()
         data = np.vstack((X1, X2)).transpose()
-        data = torch.from_numpy(data).to(device)
+        data = torch.from_numpy(data).to(self.device)
         return data
 
 
@@ -282,6 +280,89 @@ class HyperplaneArrangement:
         self.depth = depth
         self.n_regions = n_regions
         self.n_intersect_funcs = 0 if intersect_funs is None else intersect_funs.size(0)
+
+
+class HyperplaneArrangements:
+    def __init__(
+        self,
+        root_dir,
+        hyperplane_arrangements: Dict[int, List[HyperplaneArrangement]],
+        bounds: Tuple[int, int] = (-1, 1),
+    ) -> None:
+        self.root_dir = root_dir
+        self.hyperplane_arrangements = hyperplane_arrangements
+        self.bounds = bounds
+
+    def _check_dim(self, hpa: HyperplaneArrangement):
+        return hpa.p_funs.size(1) - 1 == 2
+
+    def _draw_weights_scatter(
+        self,
+        hpa: HyperplaneArrangement,
+        pic_dir: str,
+        fileName: str = "weights_scatter.jpg",
+    ):
+        if not self._check_dim(hpa):
+            raise NotImplementedError("draw weight scatter can only be used on 2 dim.")
+        # 绘制权重向量的散点
+        pass
+
+    def draw_hyperplane_arrangments(self):
+        p_dir = os.path.join(self.root_dir, "hyperplane_arrangments")
+        os.makedirs(p_dir, exist_ok=True)
+        for depth, hpas in self.hyperplane_arrangements.items():
+            save_dir = os.path.join(p_dir, f"depth_{depth+1}")
+            os.makedirs(save_dir, exist_ok=True)
+            for idx, hpa in enumerate(hpas):
+                self._draw_hyperplane_arrangment(hpa, save_dir, f"arrangement_{idx}.jpg")
+
+    def _draw_hyperplane_arrangment(
+        self,
+        hpa: HyperplaneArrangement,
+        pic_dir: str,
+        fileName: str = "arrangement.jpg",
+    ):
+        if not self._check_dim(hpa):
+            raise NotImplementedError("draw weight scatter can only be used on 2 dim.")
+        fig = plt.figure(0, figsize=(8, 7), dpi=600)
+        ax = fig.subplots()
+        ax.cla()
+        ax.tick_params(labelsize=15)
+        # 绘制区域
+        plot_region(
+            hpa.p_funs.numpy(),
+            hpa.p_regions.numpy(),
+            color='tomato',
+            alpha=0.5,
+            ax=ax,
+        )
+        self.__plot(ax, hpa.c_funs, color='limegreen', linewidth=0.3, linestyle="--")
+        self.__plot(ax, hpa.intersect_funs, color='royalblue', linewidth=0.4)
+        ax.set_xlim(*self.bounds)
+        ax.set_ylim(*self.bounds)
+        ax.set_title(f"counts of the regions: {hpa.n_regions}/{hpa.n_intersect_funcs}/{hpa.c_funs.size(0)}")
+        plt.savefig(os.path.join(pic_dir, fileName))
+        plt.clf()
+        plt.close()
+
+    def __plot(self, ax: plt.Axes, funcs: torch.Tensor, *args, **kwds):
+        if funcs is None or len(funcs) == 0:
+            return
+        np_funcs = funcs.numpy()
+        for i in range(np_funcs.shape[0]):
+            c_fun = np_funcs[i]
+            x = np.linspace(self.bounds[0], self.bounds[1])
+            y = -(c_fun[0] * x + c_fun[2]) / (c_fun[1] + 1e-16)
+            ax.plot(x, y, *args, **kwds)
+
+    def run(self, is_draw=False):
+        funs = [
+            self.draw_hyperplane_arrangments,
+        ]
+        if is_draw:
+            funs.append(self.draw_hyperplane_arrangments)
+        for fun in funs:
+            fun()
 
 
 class Handler(BaseHandler):
@@ -305,6 +386,7 @@ class Handler(BaseHandler):
         self.points.append(point)
 
     def _init_inner_hyperplanes_handler(self):
+        self.hyperplane_arrangements: Dict[int, List[HyperplaneArrangement]] = dict()
         return self
 
     def inner_hyperplanes_handler(
@@ -316,6 +398,10 @@ class Handler(BaseHandler):
         n_regions: int,
         depth: int,
     ) -> None:
+        hp_arr = HyperplaneArrangement(p_funs, p_regions, c_funs, intersect_funs, n_regions, depth)
+        depth_hp_arrs = self.hyperplane_arrangements.get(depth, list())
+        depth_hp_arrs.append(hp_arr)
+        self.hyperplane_arrangements[depth] = depth_hp_arrs
         return
 
 
@@ -323,31 +409,29 @@ class LinearRegion(_base):
     def __init__(
         self,
         save_dir: str,
+        net: Callable[[int], Model],
         dataset: Callable[..., Tuple[Dataset, int]],
         *,
-        n_layers: List[int] = [16, 16, 16],
-        in_features: int = 2,
         save_epoch: List[int] = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100],
         bounds: Tuple[float] = (-1, 1),
         is_draw: bool = True,
+        is_hpas: bool = True,
         device: device = torch.device('cpu'),
     ) -> None:
         super().__init__(
             save_dir,
+            net=net,
             dataset=dataset,
-            n_layers=n_layers,
-            in_features=in_features,
             save_epoch=save_epoch,
             device=device,
         )
         self.bounds = bounds
         self.is_draw = is_draw
+        self.is_hpas = is_hpas
 
     def get_region(self):
-        dataset, n_classes = self.dataset()
-        self._init(dataset=dataset)
+        net, dataset, n_classes = self._init_model()
         val_dataloader = data.DataLoader(dataset, shuffle=True, pin_memory=True)
-        net: Model = self.init_net(n_classes)
         au = ReLUNets(device=self.device)
         model_list = os.listdir(self.model_dir)
         with torch.no_grad():
@@ -367,7 +451,7 @@ class LinearRegion(_base):
                 region_num = au.get_region_counts(
                     net,
                     bounds=self.bounds,
-                    input_size=(self.in_features,),
+                    input_size=dataset.input_size,
                     depth=net.n_relu,
                     handler=handler,
                 )
@@ -383,8 +467,12 @@ class LinearRegion(_base):
                         net,
                         n_classes,
                         bounds=self.bounds,
+                        device=self.device,
                     )
-                    drawReginImage.draw()
+                    drawReginImage.draw(True)
+                if self.is_hpas:
+                    hpas = HyperplaneArrangements(save_dir, handler.hyperplane_arrangements)
+                    hpas.run(self.is_draw)
 
                 dataSaveDict = {
                     "funcs": handler.funs,
@@ -399,18 +487,18 @@ class LinearRegion(_base):
 class Experiment(_base):
     def __init__(
         self,
+        net: Callable[[int], Model],
+        dataset: Callable[..., Tuple[Dataset, int]],
         save_dir: str,
         init_fun: Callable[..., None],
         *,
-        n_layers: List[int] = [16, 16, 16],
-        in_features: int = 2,
         save_epoch: List[int] = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100],
         device: device = torch.device('cpu'),
     ) -> None:
         super().__init__(
             save_dir,
-            n_layers=n_layers,
-            in_features=in_features,
+            net=net,
+            dataset=dataset,
             save_epoch=save_epoch,
             device=device,
         )
@@ -419,16 +507,14 @@ class Experiment(_base):
 
     def train(
         self,
-        dataset: Callable[..., Tuple[Dataset, int]],
         max_epoch: int = 100,
         batch_size: int = 32,
         lr: float = 0.001,
     ):
         toy_train = TrainToy(
             save_dir=self.save_dir,
-            dataset=dataset,
-            n_layers=self.n_layers,
-            in_features=self.in_features,
+            net=self.net,
+            dataset=self.dataset,
             save_epoch=self.save_epoch,
             max_epoch=max_epoch,
             batch_size=batch_size,
@@ -440,17 +526,17 @@ class Experiment(_base):
 
     def linear_region(
         self,
-        dataset: Callable[..., Tuple[Dataset, int]],
         is_draw: bool = True,
+        is_hpas: bool = True,
         bounds: Tuple[float] = (-1, 1),
     ):
         linear_region = LinearRegion(
             save_dir=self.save_dir,
-            dataset=dataset,
-            n_layers=self.n_layers,
-            in_features=self.in_features,
+            net=self.net,
+            dataset=self.dataset,
             save_epoch=self.save_epoch,
             is_draw=is_draw,
+            is_hpas=is_hpas,
             bounds=bounds,
             device=torch.device('cpu'),
         )

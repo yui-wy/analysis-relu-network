@@ -9,7 +9,7 @@ class BaseHandler:
         region: torch.Tensor,
         point: np.ndarray,
     ):
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def inner_hyperplanes_handler(
         self,
@@ -20,7 +20,7 @@ class BaseHandler:
         n_regions: int,
         depth: int,
     ) -> None:
-        raise NotImplementedError
+        raise NotImplementedError()
 
 
 class DefaultHandler(BaseHandler):

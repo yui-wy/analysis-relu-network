@@ -65,7 +65,7 @@ class Module(nn.Module):
             >>>     ....
             >>>     return weight_graph, bias_graph
         """
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def train(self, mode: bool = True):
         self.graphing = False

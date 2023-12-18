@@ -39,20 +39,39 @@ def plot_regions(
     ylim=(-1, 1),
 ):
     for i in range(len(functions_list)):
-        functions: np.ndarray = functions_list[i]
-        region: np.ndarray = regions[i]
-        functions = -region.reshape(-1, 1) * functions
-        A, b = functions[:, :-1], -functions[:, -1]
-        poly = polytope.Polytope(A, b)
-        poly.plot(
-            ax=ax,
-            color=color(i),
+        ax = plot_region(
+            functions_list[i],
+            regions[i],
+            ax,
+            color(i),
             alpha=alpha,
             edgecolor=edgecolor,
             linewidth=linewidth,
         )
     xlim and ax.set_xlim(*xlim)
     ylim and ax.set_ylim(*ylim)
+    return ax
+
+
+def plot_region(
+    functions: np.ndarray,
+    region: np.ndarray,
+    ax: plt.Axes,
+    color,
+    alpha=1.0,
+    edgecolor="w",
+    linewidth=0.01,
+):
+    functions = -region.reshape(-1, 1) * functions
+    A, b = functions[:, :-1], -functions[:, -1]
+    poly = polytope.Polytope(A, b)
+    poly.plot(
+        ax=ax,
+        color=color,
+        alpha=alpha,
+        edgecolor=edgecolor,
+        linewidth=linewidth,
+    )
     return ax
 
 

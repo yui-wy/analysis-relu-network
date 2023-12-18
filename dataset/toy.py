@@ -20,6 +20,7 @@ class Dataset(data.Dataset):
         super().__init__()
         self.name = name
         self.data, self.classes = data_fun()
+        self.input_size = self.data.shape[1:]
 
     def __getitem__(self, index) -> Tuple[torch.Tensor, torch.Tensor]:
         x, target = torch.from_numpy(self.data[index]), self.classes[index]
