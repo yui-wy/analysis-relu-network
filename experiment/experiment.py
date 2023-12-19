@@ -16,6 +16,8 @@ from torchays.analysis import BaseHandler, Model, ReLUNets
 from torchays.graph import COLOR, color, plot_region, plot_regions, plot_regions_3d
 from torchays.utils import get_logger
 
+EPSILON = 1e-16
+
 
 def accuracy(x, classes):
     arg_max = torch.argmax(x, dim=1).long()
@@ -305,7 +307,9 @@ class HyperplaneArrangements:
         if not self._check_dim(hpa):
             raise NotImplementedError("draw weight scatter can only be used on 2 dim.")
         # 绘制权重向量的散点
-        pass
+        p_weight = hpa.p_funs * hpa.p_regions.unsqueeze(0)
+        # weight of f(x)+1 > 0
+        p_weight = (p_weight / (p_weight[:, -1].abs() + EPSILON)).numpy()
 
     def draw_hyperplane_arrangments(self):
         p_dir = os.path.join(self.root_dir, "hyperplane_arrangments")
@@ -348,17 +352,15 @@ class HyperplaneArrangements:
     def __plot(self, ax: plt.Axes, funcs: torch.Tensor, *args, **kwds):
         if funcs is None or len(funcs) == 0:
             return
-        np_funcs = funcs.numpy()
+        np_funcs: np.ndarray = funcs.numpy()
+        x = np.linspace(self.bounds[0], self.bounds[1], num=3)
         for i in range(np_funcs.shape[0]):
             c_fun = np_funcs[i]
-            x = np.linspace(self.bounds[0], self.bounds[1])
-            y = -(c_fun[0] * x + c_fun[2]) / (c_fun[1] + 1e-16)
+            y = -(c_fun[0] * x + c_fun[2]) / (c_fun[1] + EPSILON)
             ax.plot(x, y, *args, **kwds)
 
     def run(self, is_draw=False):
-        funs = [
-            self.draw_hyperplane_arrangments,
-        ]
+        funs = []
         if is_draw:
             funs.append(self.draw_hyperplane_arrangments)
         for fun in funs:
