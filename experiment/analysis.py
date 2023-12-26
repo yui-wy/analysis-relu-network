@@ -66,7 +66,7 @@ def analysis():
         labDir = os.path.join(DatasetDir, tag, 'lab')
         for epochFold in os.listdir(labDir):
             epoch = float(epochFold[4:])
-            pklDict = torch.load(os.path.join(labDir, epochFold, 'data_save.pkl'))
+            pklDict = torch.load(os.path.join(labDir, epochFold, 'net_regions.pkl'))
             labDict[tag][epoch] = pklDict
 
     saveRegionEpochTabel(labDict, saveDir)

@@ -11,11 +11,12 @@ class TestTNetLinear(nn.Module):
         self,
         in_features=2,
         layers: tuple = [32, 32, 32],
+        name: str = "Linear",
         n_classes=2,
         norm_layer=nn.BatchNorm1d,
     ):
         super(TestTNetLinear, self).__init__()
-        self.name = f"Linear-{layers}".replace(' ', '')
+        self.name = f"{name}-{layers}".replace(' ', '')
         self.n_layers = len(layers)
         self.n_relu = self.n_layers - 1
         self.relu = nn.ReLU()
@@ -63,12 +64,13 @@ class TestResNet(nn.Module):
         in_features: int,
         layers: List[int],
         first_features: int = 32,
+        name: str = "Resnet-Full",
         n_classes: int = 2,
         norm_layer=nn.BatchNorm1d,
         is_no_res: bool = False,
     ):
         super(TestResNet, self).__init__()
-        self.name = f"Resnet-Full-{layers}".replace(' ', '')
+        self.name = f"{name}-{layers}".replace(' ', '')
         self._is_no_res = is_no_res
         self.n_layers = len(layers)
         self.n_relu = (self.n_layers - 1) * 2 + 1

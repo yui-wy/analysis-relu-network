@@ -15,6 +15,7 @@ from torchays.models import TestTNetLinear
 
 GPU_ID = 0
 SEED = 5
+NAME = "Linear"
 DATASET = MOON
 N_LAYERS = [16, 16, 16]
 # Dataset
@@ -25,8 +26,8 @@ N_CLASSES = 2
 # only RANDOM
 IN_FEATURES = 2
 # Training
-MAX_EPOCH = 100
-SAVE_EPOCH = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100]
+MAX_EPOCH = 5000
+SAVE_EPOCH = [100, 200, 500, 1000, 2000, 4000, 5000]
 BATCH_SIZE = 32
 LR = 1e-3
 BOUND = (-1, 1)
@@ -36,7 +37,7 @@ IS_TRAIN = True
 # is drawing the region picture. Only for 2d input.
 IS_DRAW = True
 # is handlering the hyperplanes arrangement.
-IS_HPAS = True
+IS_HPAS = False
 
 
 def init_fun():
@@ -46,7 +47,13 @@ def init_fun():
 
 
 def net(n_classes: int) -> nn.Module:
-    return TestTNetLinear(IN_FEATURES, N_LAYERS, n_classes)
+    return TestTNetLinear(
+        in_features=IN_FEATURES,
+        layers=N_LAYERS,
+        name=NAME,
+        n_classes=n_classes,
+        norm_layer=nn.BatchNorm1d,
+    )
 
 
 def dataset(save_dir: str, name: str = "dataset.pkl"):

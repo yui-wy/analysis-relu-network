@@ -1,3 +1,4 @@
+import imp
 import math
 import os
 from typing import Any, Callable, Dict, List, Tuple
@@ -7,13 +8,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polytope as pc
 import torch
+from mpl_toolkits.mplot3d.axes3d import Axes3D
 from torch._C import device
 from torch.utils import data
 
 from dataset import Dataset
 from torchays import nn
 from torchays.analysis import BaseHandler, Model, ReLUNets
-from torchays.graph import COLOR, color, plot_region, plot_regions, plot_regions_3d
+from torchays.graph import (
+    COLOR,
+    color,
+    plot_region,
+    plot_regions,
+    plot_regions_3d,
+)
 from torchays.utils import get_logger
 
 EPSILON = 1e-16
@@ -188,7 +196,7 @@ class DrawRegionImage:
 
     def draw_region_img_3d(self, fileName="region_img_3d.png"):
         fig = plt.figure(0)
-        ax = fig.add_subplot(projection="3d")
+        ax: plt.Axes = fig.add_subplot(projection="3d")
         ax.cla()
         ax.tick_params(labelsize=15)
         plot_regions_3d(
@@ -279,8 +287,8 @@ class HyperplaneArrangement:
         self.p_regions = p_regions
         self.c_funs = c_funs
         self.intersect_funs = intersect_funs
-        self.depth = depth
         self.n_regions = n_regions
+        self.depth = depth
         self.n_intersect_funcs = 0 if intersect_funs is None else intersect_funs.size(0)
 
 
@@ -298,6 +306,16 @@ class HyperplaneArrangements:
     def _check_dim(self, hpa: HyperplaneArrangement):
         return hpa.p_funs.size(1) - 1 == 2
 
+    def draw_hyperplane_arrangments(self):
+        p_dir = os.path.join(self.root_dir, "hyperplane_arrangments")
+        for depth, hpas in self.hyperplane_arrangements.items():
+            save_dir = os.path.join(p_dir, f"depth_{depth+1}")
+            for idx, hpa in enumerate(hpas):
+                pic_dir = os.path.join(save_dir, f"hpa_{idx}")
+                os.makedirs(pic_dir, exist_ok=True)
+                self._draw_hyperplane_arrangment(hpa, pic_dir, f"arrangement.jpg")
+                self._draw_weights_scatter(hpa, pic_dir, f"weights_scatter.jpg")
+
     def _draw_weights_scatter(
         self,
         hpa: HyperplaneArrangement,
@@ -306,19 +324,31 @@ class HyperplaneArrangements:
     ):
         if not self._check_dim(hpa):
             raise NotImplementedError("draw weight scatter can only be used on 2 dim.")
-        # 绘制权重向量的散点
-        p_weight = hpa.p_funs * hpa.p_regions.unsqueeze(0)
-        # weight of f(x)+1 > 0
-        p_weight = (p_weight / (p_weight[:, -1].abs() + EPSILON)).numpy()
 
-    def draw_hyperplane_arrangments(self):
-        p_dir = os.path.join(self.root_dir, "hyperplane_arrangments")
-        os.makedirs(p_dir, exist_ok=True)
-        for depth, hpas in self.hyperplane_arrangements.items():
-            save_dir = os.path.join(p_dir, f"depth_{depth+1}")
-            os.makedirs(save_dir, exist_ok=True)
-            for idx, hpa in enumerate(hpas):
-                self._draw_hyperplane_arrangment(hpa, save_dir, f"arrangement_{idx}.jpg")
+        # 绘制权重向量的散点 3d 散点图
+        # weight of AX+b > 0
+        def draw_weight(ax: plt.Axes, funs: torch.Tensor, color: Callable[[int], str], *args, **kwds) -> np.ndarray:
+            scale_rate = (funs[:, 0].square() + funs[:, 1].square()).sqrt().unsqueeze(1)
+            f_weight = (funs / scale_rate).numpy()
+            for i in range(f_weight.shape[0]):
+                ax.scatter(f_weight[i, 0], f_weight[i, 1], f_weight[i, 2], c=color(i), *args, **kwds)
+
+        fig = plt.figure(0, figsize=(8, 7), dpi=600)
+        # fig = plt.figure(0)
+        ax: plt.Axes = fig.add_subplot(projection="3d")
+        ax.cla()
+        ax.tick_params(labelsize=15)
+        p_regions = (hpa.p_regions + 1) * 4
+        p_funs = hpa.p_funs * hpa.p_regions.unsqueeze(1)
+        draw_weight(ax, p_funs, lambda i: color(p_regions[i]), marker="x")
+        draw_weight(ax, -p_funs, lambda _: color(3), marker="x")
+        draw_weight(ax, hpa.c_funs, lambda _: color(2))
+        if hpa.intersect_funs is not None:
+            draw_weight(ax, hpa.intersect_funs, lambda _: color(1))
+        # plt.show()
+        plt.savefig(os.path.join(pic_dir, fileName))
+        plt.clf()
+        plt.close()
 
     def _draw_hyperplane_arrangment(
         self,
@@ -344,7 +374,7 @@ class HyperplaneArrangements:
         self.__plot(ax, hpa.intersect_funs, color='royalblue', linewidth=0.4)
         ax.set_xlim(*self.bounds)
         ax.set_ylim(*self.bounds)
-        ax.set_title(f"counts of the regions: {hpa.n_regions}/{hpa.n_intersect_funcs}/{hpa.c_funs.size(0)}")
+        ax.set_title(f"Counts of the regions: {hpa.n_regions}/{hpa.n_intersect_funcs}/{hpa.c_funs.size(0)}")
         plt.savefig(os.path.join(pic_dir, fileName))
         plt.clf()
         plt.close()
@@ -356,11 +386,20 @@ class HyperplaneArrangements:
         x = np.linspace(self.bounds[0], self.bounds[1], num=3)
         for i in range(np_funcs.shape[0]):
             c_fun = np_funcs[i]
-            y = -(c_fun[0] * x + c_fun[2]) / (c_fun[1] + EPSILON)
+            w_y = EPSILON if c_fun[1] == 0 else c_fun[1]
+            y = -(c_fun[0] * x + c_fun[2]) / w_y
             ax.plot(x, y, *args, **kwds)
 
+    def save(self, name: str = "hyps.pkl"):
+        save_path = os.path.join(self.root_dir, name)
+        data = {
+            "hpas": self.hyperplane_arrangements,
+            "bounds": self.bounds,
+        }
+        torch.save(data, save_path)
+
     def run(self, is_draw=False):
-        funs = []
+        funs = [self.save]
         if is_draw:
             funs.append(self.draw_hyperplane_arrangments)
         for fun in funs:
@@ -483,7 +522,7 @@ class LinearRegion(_base):
                     "regionNum": region_num,
                     "accuracy": acc,
                 }
-                torch.save(dataSaveDict, os.path.join(save_dir, "data_save.pkl"))
+                torch.save(dataSaveDict, os.path.join(save_dir, "net_regions.pkl"))
 
 
 class Experiment(_base):
