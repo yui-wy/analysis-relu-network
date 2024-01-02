@@ -333,22 +333,21 @@ class HyperplaneArrangements:
             for i in range(f_weight.shape[0]):
                 ax.scatter(f_weight[i, 0], f_weight[i, 1], f_weight[i, 2], c=color(i), *args, **kwds)
 
-        fig = plt.figure(0, figsize=(8, 7), dpi=600)
-        # fig = plt.figure(0)
+        # fig = plt.figure(0, figsize=(8, 7), dpi=600)
+        fig = plt.figure(0)
         ax: plt.Axes = fig.add_subplot(projection="3d")
         ax.cla()
         ax.tick_params(labelsize=15)
-        p_regions = (hpa.p_regions + 1) * 4
         p_funs = hpa.p_funs * hpa.p_regions.unsqueeze(1)
-        draw_weight(ax, p_funs, lambda i: color(p_regions[i]), marker="x")
-        draw_weight(ax, -p_funs, lambda _: color(3), marker="x")
+        draw_weight(ax, p_funs, lambda i: color((hpa.p_regions + 4)[i]), marker="x")
+        draw_weight(ax, -p_funs, lambda i: color((-hpa.p_regions + 4)[i]), marker="^")
         draw_weight(ax, hpa.c_funs, lambda _: color(2))
         if hpa.intersect_funs is not None:
             draw_weight(ax, hpa.intersect_funs, lambda _: color(1))
-        # plt.show()
-        plt.savefig(os.path.join(pic_dir, fileName))
-        plt.clf()
-        plt.close()
+        plt.show()
+        # plt.savefig(os.path.join(pic_dir, fileName))
+        # plt.clf()
+        # plt.close()
 
     def _draw_hyperplane_arrangment(
         self,
@@ -560,7 +559,7 @@ class Experiment(_base):
             max_epoch=max_epoch,
             batch_size=batch_size,
             lr=lr,
-            device=torch.device('cpu'),
+            device=self.device,
         )
         self.append(toy_train.train)
         return self
@@ -579,7 +578,7 @@ class Experiment(_base):
             is_draw=is_draw,
             is_hpas=is_hpas,
             bounds=bounds,
-            device=torch.device('cpu'),
+            device=self.device,
         )
         self.append(linear_region.get_region)
 
