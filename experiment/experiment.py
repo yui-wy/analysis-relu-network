@@ -333,8 +333,8 @@ class HyperplaneArrangements:
             for i in range(f_weight.shape[0]):
                 ax.scatter(f_weight[i, 0], f_weight[i, 1], f_weight[i, 2], c=color(i), *args, **kwds)
 
-        # fig = plt.figure(0, figsize=(8, 7), dpi=600)
-        fig = plt.figure(0)
+        fig = plt.figure(0, figsize=(8, 7), dpi=600)
+        # fig = plt.figure(0)
         ax: plt.Axes = fig.add_subplot(projection="3d")
         ax.cla()
         ax.tick_params(labelsize=15)
@@ -344,10 +344,10 @@ class HyperplaneArrangements:
         draw_weight(ax, hpa.c_funs, lambda _: color(2))
         if hpa.intersect_funs is not None:
             draw_weight(ax, hpa.intersect_funs, lambda _: color(1))
-        plt.show()
-        # plt.savefig(os.path.join(pic_dir, fileName))
-        # plt.clf()
-        # plt.close()
+        # plt.show()
+        plt.savefig(os.path.join(pic_dir, fileName))
+        plt.clf()
+        plt.close()
 
     def _draw_hyperplane_arrangment(
         self,

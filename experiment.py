@@ -3,14 +3,10 @@ import os
 import numpy as np
 import torch
 
-from dataset import (
-    GAUSSIAN_QUANTILES,
-    MOON,
-    RANDOM,
-    simple_get_data,
-)
+from dataset import GAUSSIAN_QUANTILES, MOON, RANDOM, simple_get_data
 from experiment import Experiment
 from torchays import nn
+from torchays.analysis import Model
 from torchays.models import TestTNetLinear
 
 GPU_ID = 0
@@ -46,7 +42,7 @@ def init_fun():
     np.random.seed(SEED)
 
 
-def net(n_classes: int) -> nn.Module:
+def net(n_classes: int) -> Model:
     return TestTNetLinear(
         in_features=IN_FEATURES,
         layers=N_LAYERS,

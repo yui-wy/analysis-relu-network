@@ -39,7 +39,7 @@ class TestTNetLinear(nn.Module):
         x = self._modules[f"{self.n_layers}"](x)
         return x
 
-    def forward_graph_Layer(self, x, depth=0):
+    def forward_layer(self, x, depth=0):
         assert depth >= 0, "'layer' must be greater than 0."
         x = self._modules['0'](x)
         x = self._modules["0_norm"](x)
@@ -122,7 +122,7 @@ class TestResNet(nn.Module):
 
         return out
 
-    def forward_graph_Layer(self, x: torch.Tensor, depth=-1):
+    def forward_layer(self, x: torch.Tensor, depth=-1):
         assert depth >= 0, "'layer' must be greater than 0."
         out = self.linear1(x)
         out = self.norm1(out)

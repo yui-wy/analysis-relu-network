@@ -32,7 +32,7 @@ class TestNet(nn.Module):
 
         return x
 
-    def forward_graph_Layer(self, x, depth=-1):
+    def forward_layer(self, x, depth=-1):
         x = self.fc1(x)
         if depth == 0:
             return x

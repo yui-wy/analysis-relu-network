@@ -108,7 +108,7 @@ class WapperRegion:
 class ReLUNets:
     """
     ReLUNets needs to ensure that the net has the function:
-        >>> def forward_graph_Layer(*args, depth=depth):
+        >>> def forward_layer(*args, depth=depth):
         >>>     ''' layer is a "int" before every ReLU module. "Layer" can get the layer weight and bias graph.'''
         >>>     if depth == 1:
         >>>         return output
@@ -147,7 +147,7 @@ class ReLUNets:
         x = torch.from_numpy(x).float().to(self.device)
         x = x.reshape(*self.input_size).unsqueeze(dim=0)
         with torch.no_grad():
-            _, graph = self.net.forward_graph_Layer(x, depth=depth)
+            _, graph = self.net.forward_layer(x, depth=depth)
             # (1, *output.size(), *input.size())
             weight_graph, bias_graph = graph["weight_graph"], graph["bias_graph"]
             # (output.num, input.num)
