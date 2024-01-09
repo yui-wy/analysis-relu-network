@@ -53,19 +53,19 @@ def net(n_classes: int) -> Model:
 
 
 def dataset(save_dir: str, name: str = "dataset.pkl"):
-    def fun():
+    def make_dataset():
         return simple_get_data(
-            DATASET,
-            N_SAMPLES,
-            0.2,
-            5,
-            os.path.join(save_dir, name),
+            dataset=DATASET,
+            n_samples=N_SAMPLES,
+            noise=0.2,
+            random_state=5,
+            data_path=os.path.join(save_dir, name),
             n_classes=N_CLASSES,
             in_features=IN_FEATURES,
             bias=DATASET_BIAS,
         )
 
-    return fun
+    return make_dataset
 
 
 if __name__ == "__main__":
