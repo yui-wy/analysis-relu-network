@@ -458,6 +458,7 @@ class LinearRegion(_base):
         bounds: Tuple[float] = (-1, 1),
         is_draw: bool = True,
         is_hpas: bool = True,
+        is_draw_3d: bool = False,
         device: device = torch.device('cpu'),
     ) -> None:
         super().__init__(
@@ -470,6 +471,7 @@ class LinearRegion(_base):
         self.bounds = bounds
         self.is_draw = is_draw
         self.is_hpas = is_hpas
+        self.is_draw_3d = is_draw_3d
 
     def get_region(self):
         net, dataset, n_classes = self._init_model()
@@ -511,7 +513,7 @@ class LinearRegion(_base):
                         bounds=self.bounds,
                         device=self.device,
                     )
-                    drawReginImage.draw(True)
+                    drawReginImage.draw(self.is_draw_3d)
                 if self.is_hpas:
                     hpas = HyperplaneArrangements(save_dir, handler.hyperplane_arrangements)
                     hpas.run(self.is_draw)
@@ -570,6 +572,7 @@ class Experiment(_base):
         self,
         is_draw: bool = True,
         is_hpas: bool = True,
+        is_draw_3d: bool = False,
         bounds: Tuple[float] = (-1, 1),
     ):
         linear_region = LinearRegion(
@@ -579,6 +582,7 @@ class Experiment(_base):
             save_epoch=self.save_epoch,
             is_draw=is_draw,
             is_hpas=is_hpas,
+            is_draw_3d=is_draw_3d,
             bounds=bounds,
             device=self.device,
         )

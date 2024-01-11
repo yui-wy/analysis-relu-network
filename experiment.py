@@ -34,6 +34,8 @@ IS_EXPERIMENT = True
 IS_TRAIN = True
 # is drawing the region picture. Only for 2d input.
 IS_DRAW = True
+# is drawing the 3d region picture.
+IS_DRAW_3D = False
 # is handlering the hyperplanes arrangement.
 IS_HPAS = False
 
@@ -99,6 +101,7 @@ if __name__ == "__main__":
             bounds=BOUND,
             is_draw=IS_DRAW,
             is_hpas=IS_HPAS,
+            is_draw_3d=IS_DRAW_3D,
         )
         exp()
     if IS_ANALYSIS:
