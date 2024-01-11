@@ -1,15 +1,11 @@
 import os
-from typing import Dict
+from typing import Any, Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from dataset import GAUSSIAN_QUANTILES, MOON, RANDOM
-from torchays.graph import COLOR
-
-DATASET = MOON
-ROOT_DIR = os.path.abspath("./")
+from torchays.graph import color
 
 
 class default_plt:
@@ -50,71 +46,67 @@ def default(savePath, xlabel='', ylabel='', mode='png', isGray=False, isLegend=T
     return default_plt(savePath, xlabel, ylabel, mode, isGray, isLegend, isGrid)
 
 
-def analysis():
-    labDict = {}
-    DatasetDir = os.path.join(ROOT_DIR, 'cache', DATASET)
-    saveDir = os.path.join(DatasetDir, "All")
-    if not os.path.exists(saveDir):
-        os.makedirs(saveDir)
-    for tag in os.listdir(DatasetDir):
-        if tag == "All":
-            continue
-        labDict[tag] = {}
-        datasetPath = os.path.join(DatasetDir, tag, 'dataset.pkl')
-        dataset = torch.load(datasetPath)
-        drawDataSet(dataset, os.path.join(DatasetDir, tag))
-        labDir = os.path.join(DatasetDir, tag, 'lab')
-        for epochFold in os.listdir(labDir):
-            epoch = float(epochFold[4:])
-            pklDict = torch.load(os.path.join(labDir, epochFold, 'net_regions.pkl'))
-            labDict[tag][epoch] = pklDict
+class Analysis:
+    def __init__(self, root_dir, only_dataset: bool = False) -> None:
+        self.root_dir = root_dir
+        self.only_dataset = only_dataset
 
-    saveRegionEpochTabel(labDict, saveDir)
-    drawRegionEpochPlot(labDict, saveDir)
-    drawRegionAccPlot(labDict, saveDir)
-    drawEpochAccPlot(labDict, saveDir)
+    def analysis(self) -> None:
+        # draw dataset distribution
+        self.draw_dataset()
+        if self.only_dataset:
+            return
+        # get data
+        experiment_dict = {}
+        for tag in os.listdir(self.root_dir):
+            tag_dir = os.path.join(self.root_dir, tag)
+            if not os.path.isdir(tag_dir):
+                continue
+            tag_dict = {}
+            experiment_dir = os.path.join(tag_dir, "experiment")
+            for epoch_fold in os.listdir(experiment_dir):
+                epoch = float(epoch_fold[4:])
+                net_reigions = torch.load(os.path.join(experiment_dir, epoch_fold, 'net_regions.pkl'))
+                tag_dict[epoch] = net_reigions
+            experiment_dict[tag] = tag_dict
 
+        # save dir
+        save_dir = os.path.join(self.root_dir, "analysis")
+        os.makedirs(save_dir, exist_ok=True)
+        # draw picture
+        self.draw(experiment_dict, save_dir)
 
-def saveRegionEpochTabel(labDict: Dict, saveDir):
-    savePath = os.path.join(saveDir, "regionEpoch.csv")
-    strBuff = ''
-    head = None
-    for tag, epochDict in labDict.items():
-        tag1 = tag.split('-')[-1].replace(',', '-')
-        body = [
-            tag1,
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        self.analysis(*args, **kwds)
+
+    def draw(self, experiment_dict: Dict, save_dir: str):
+        funs = [
+            self.save_region_epoch_tabel,
+            self.draw_region_epoch_plot,
+            self.draw_region_acc_plot,
+            self.draw_epoch_acc_plot,
         ]
-        dataList = []
-        for epoch, fileDict in epochDict.items():
-            data = [epoch, fileDict['regionNum']]
-            dataList.append(data)
-        dataList = np.array(dataList)
-        a = dataList[:, 0]
-        index = np.lexsort((a,))
-        dataList = dataList[index]
-        regionList = list(map(str, dataList[:, 1].astype(np.int16).tolist()))
-        body.extend(regionList)
-        bodyStr = ','.join(body)
-        if head is None:
-            epochList = list(map(str, dataList[:, 0].tolist()))
-            head = [
-                'model/epoch',
-            ]
-            head.extend(epochList)
-            headStr = ','.join(head)
-            strBuff = strBuff + headStr + '\r\n'
-        strBuff = strBuff + bodyStr + '\r\n'
-    with open(savePath, 'w') as w:
-        w.write(strBuff)
-        w.close()
+        for fun in funs:
+            fun(experiment_dict, save_dir)
 
+    def draw_dataset(self):
+        dataset_path = os.path.join(self.root_dir, 'dataset.pkl')
+        dataset = torch.load(dataset_path)
+        save_path = os.path.join(self.root_dir, "distribution.png")
+        x, y, n_classes = dataset['data'], dataset['classes'], dataset['n_classes']
+        with default(save_path, 'x1', 'x2', isLegend=False, isGrid=False) as ax:
+            ax.set_xlim(-1, 1)
+            ax.set_ylim(-1, 1)
+            for i in range(n_classes):
+                ax.scatter(x[y == i, 0], x[y == i, 1], color=color(i))
 
-def drawRegionEpochPlot(labDict: Dict, saveDir):
-    savePath = os.path.join(saveDir, "regionEpoch.png")
-    with default(savePath, 'Epoch', 'Number of Rgions') as ax:
-        i = 0
-        for tag, epochDict in labDict.items():
-            tag1 = tag.split('-')[-1]
+    def save_region_epoch_tabel(self, experiment_dict: Dict, save_dir):
+        savePath = os.path.join(save_dir, "regionEpoch.csv")
+        strBuff = ''
+        head = None
+        for tag, epochDict in experiment_dict.items():
+            tag1 = tag.split('-')[-1].replace(',', '-')
+            body = [tag1]
             dataList = []
             for epoch, fileDict in epochDict.items():
                 data = [epoch, fileDict['regionNum']]
@@ -123,61 +115,78 @@ def drawRegionEpochPlot(labDict: Dict, saveDir):
             a = dataList[:, 0]
             index = np.lexsort((a,))
             dataList = dataList[index]
-            ax.plot(dataList[:, 0], dataList[:, 1], label=tag1, color=COLOR[i])
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-            i += 1
+            regionList = list(map(str, dataList[:, 1].astype(np.int16).tolist()))
+            body.extend(regionList)
+            bodyStr = ','.join(body)
+            if head is None:
+                epochList = list(map(str, dataList[:, 0].tolist()))
+                head = [
+                    'model/epoch',
+                ]
+                head.extend(epochList)
+                headStr = ','.join(head)
+                strBuff = strBuff + headStr + '\r\n'
+            strBuff = strBuff + bodyStr + '\r\n'
+        with open(savePath, 'w') as w:
+            w.write(strBuff)
+            w.close()
 
+    def draw_region_epoch_plot(self, experiment_dict: Dict, save_dir):
+        savePath = os.path.join(save_dir, "regionEpoch.png")
+        with default(savePath, 'Epoch', 'Number of Rgions') as ax:
+            i = 0
+            for tag, epochDict in experiment_dict.items():
+                tag1 = tag.split('-')[-1]
+                dataList = []
+                for epoch, fileDict in epochDict.items():
+                    data = [epoch, fileDict['regionNum']]
+                    dataList.append(data)
+                dataList = np.array(dataList)
+                a = dataList[:, 0]
+                index = np.lexsort((a,))
+                dataList = dataList[index]
+                ax.plot(dataList[:, 0], dataList[:, 1], label=tag1, color=color(i))
+                ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
+                i += 1
 
-def drawRegionAccPlot(labDict: Dict, saveDir):
-    savePath = os.path.join(saveDir, "regionAcc.png")
-    with default(savePath, 'Accuracy', 'Number of Rgions') as ax:
-        i = 0
-        for tag, epochDict in labDict.items():
-            tag1 = tag.split('-')[-1]
-            dataList = []
-            for _, fileDict in epochDict.items():
-                acc = fileDict['accuracy']
-                if isinstance(acc, torch.Tensor):
-                    acc = acc.cpu().numpy()
-                data = [acc, fileDict['regionNum']]
-                dataList.append(data)
-            dataList = np.array(dataList)
-            a = dataList[:, 0]
-            index = np.lexsort((a,))
-            dataList = dataList[index]
-            ax.plot(dataList[:, 0], dataList[:, 1], label=tag1, color=COLOR[i])
-            ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-            # ax.set_xlim(0.965, 0.98)
-            i += 1
+    def draw_region_acc_plot(self, experiment_dict: Dict, save_dir):
+        savePath = os.path.join(save_dir, "regionAcc.png")
+        with default(savePath, 'Accuracy', 'Number of Rgions') as ax:
+            i = 0
+            for tag, epochDict in experiment_dict.items():
+                tag1 = tag.split('-')[-1]
+                dataList = []
+                for _, fileDict in epochDict.items():
+                    acc = fileDict['accuracy']
+                    if isinstance(acc, torch.Tensor):
+                        acc = acc.cpu().numpy()
+                    data = [acc, fileDict['regionNum']]
+                    dataList.append(data)
+                dataList = np.array(dataList)
+                a = dataList[:, 0]
+                index = np.lexsort((a,))
+                dataList = dataList[index]
+                ax.plot(dataList[:, 0], dataList[:, 1], label=tag1, color=color(i))
+                ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
+                # ax.set_xlim(0.965, 0.98)
+                i += 1
 
-
-def drawEpochAccPlot(labDict: Dict, saveDir):
-    savePath = os.path.join(saveDir, "EpochAcc.png")
-    with default(savePath, 'Epoch', 'Accuracy') as ax:
-        i = 0
-        for tag, epochDict in labDict.items():
-            tag1 = tag.split('-')[-1]
-            dataList = []
-            for epoch, fileDict in epochDict.items():
-                acc = fileDict['accuracy']
-                if isinstance(acc, torch.Tensor):
-                    acc = acc.cpu().numpy()
-                data = [epoch, acc]
-                dataList.append(data)
-            dataList = np.array(dataList)
-            a = dataList[:, 0]
-            index = np.lexsort((a,))
-            dataList = dataList[index]
-            ax.plot(dataList[:, 0], dataList[:, 1], label=tag1, color=COLOR[i])
-
-            i += 1
-
-
-def drawDataSet(dataset, saveDir):
-    savePath = os.path.join(saveDir, "distribution.png")
-    x, y, n_classes = dataset['data'], dataset['classes'], dataset['n_classes']
-    with default(savePath, 'x1', 'x2', isLegend=False, isGrid=False) as ax:
-        ax.set_xlim(-1, 1)
-        ax.set_ylim(-1, 1)
-        for i in range(n_classes):
-            ax.scatter(x[y == i, 0], x[y == i, 1], color=COLOR[i])
+    def draw_epoch_acc_plot(self, experiment_dict: Dict, save_dir):
+        savePath = os.path.join(save_dir, "EpochAcc.png")
+        with default(savePath, 'Epoch', 'Accuracy') as ax:
+            i = 0
+            for tag, epochDict in experiment_dict.items():
+                tag1 = tag.split('-')[-1]
+                dataList = []
+                for epoch, fileDict in epochDict.items():
+                    acc = fileDict['accuracy']
+                    if isinstance(acc, torch.Tensor):
+                        acc = acc.cpu().numpy()
+                    data = [epoch, acc]
+                    dataList.append(data)
+                dataList = np.array(dataList)
+                a = dataList[:, 0]
+                index = np.lexsort((a,))
+                dataList = dataList[index]
+                ax.plot(dataList[:, 0], dataList[:, 1], label=tag1, color=color(i))
+                i += 1

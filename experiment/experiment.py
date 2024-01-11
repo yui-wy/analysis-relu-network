@@ -338,12 +338,14 @@ class HyperplaneArrangements:
         ax: plt.Axes = fig.add_subplot(projection="3d")
         ax.cla()
         ax.tick_params(labelsize=15)
+        # AX+B > 0
         p_funs = hpa.p_funs * hpa.p_regions.unsqueeze(1)
-        draw_weight(ax, p_funs, lambda i: color((hpa.p_regions + 4)[i]), marker="x")
-        draw_weight(ax, -p_funs, lambda i: color((-hpa.p_regions + 4)[i]), marker="^")
-        draw_weight(ax, hpa.c_funs, lambda _: color(2))
+        draw_weight(ax, p_funs, lambda _: color(0), marker="x")
+        draw_weight(ax, hpa.c_funs, lambda _: color(2), marker="v")
+        draw_weight(ax, -hpa.c_funs, lambda _: color(2), marker="^")
         if hpa.intersect_funs is not None:
-            draw_weight(ax, hpa.intersect_funs, lambda _: color(1))
+            draw_weight(ax, hpa.intersect_funs, lambda _: color(1), marker="v")
+            draw_weight(ax, -hpa.intersect_funs, lambda _: color(1), marker="^")
         # plt.show()
         plt.savefig(os.path.join(pic_dir, fileName))
         plt.clf()
@@ -369,8 +371,8 @@ class HyperplaneArrangements:
             alpha=0.5,
             ax=ax,
         )
-        self.__plot(ax, hpa.c_funs, color='limegreen', linewidth=0.3, linestyle="--")
-        self.__plot(ax, hpa.intersect_funs, color='royalblue', linewidth=0.4)
+        self.__plot(ax, hpa.c_funs, color=color(2), linewidth=0.3, linestyle="--")
+        self.__plot(ax, hpa.intersect_funs, color=color(1), linewidth=0.4)
         ax.set_xlim(*self.bounds)
         ax.set_ylim(*self.bounds)
         ax.set_title(f"Counts of the regions: {hpa.n_regions}/{hpa.n_intersect_funcs}/{hpa.c_funs.size(0)}")

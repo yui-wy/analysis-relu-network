@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from dataset import GAUSSIAN_QUANTILES, MOON, RANDOM, simple_get_data
-from experiment import Experiment
+from experiment import Analysis, Experiment
 from torchays import nn
 from torchays.analysis import Model
 from torchays.models import TestTNetLinear
@@ -28,12 +28,19 @@ BATCH_SIZE = 32
 LR = 1e-3
 BOUND = (-1, 1)
 
+# Experiment
+IS_EXPERIMENT = True
 # is training the network.
 IS_TRAIN = True
 # is drawing the region picture. Only for 2d input.
 IS_DRAW = True
 # is handlering the hyperplanes arrangement.
 IS_HPAS = False
+
+# Analysis
+IS_ANALYSIS = True
+# Only draw the dataset distribution
+ONLY_DATASET = True
 
 
 def init_fun():
@@ -73,23 +80,30 @@ if __name__ == "__main__":
     save_dir = os.path.join(root_dir, "cache", f"{DATASET}-{N_SAMPLES}-{SEED}")
     os.makedirs(save_dir, exist_ok=True)
     device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
-    exp = Experiment(
-        save_dir=save_dir,
-        net=net,
-        dataset=dataset(save_dir),
-        init_fun=init_fun,
-        save_epoch=SAVE_EPOCH,
-        device=device,
-    )
-    if IS_TRAIN:
-        exp.train(
-            max_epoch=MAX_EPOCH,
-            batch_size=BATCH_SIZE,
-            lr=LR,
+    if IS_EXPERIMENT:
+        exp = Experiment(
+            save_dir=save_dir,
+            net=net,
+            dataset=dataset(save_dir),
+            init_fun=init_fun,
+            save_epoch=SAVE_EPOCH,
+            device=device,
         )
-    exp.linear_region(
-        bounds=BOUND,
-        is_draw=IS_DRAW,
-        is_hpas=IS_HPAS,
-    )
-    exp()
+        if IS_TRAIN:
+            exp.train(
+                max_epoch=MAX_EPOCH,
+                batch_size=BATCH_SIZE,
+                lr=LR,
+            )
+        exp.linear_region(
+            bounds=BOUND,
+            is_draw=IS_DRAW,
+            is_hpas=IS_HPAS,
+        )
+        exp()
+    if IS_ANALYSIS:
+        analysis = Analysis(
+            root_dir=save_dir,
+            only_dataset=ONLY_DATASET,
+        )
+        analysis()
