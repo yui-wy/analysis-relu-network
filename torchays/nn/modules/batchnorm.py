@@ -8,7 +8,16 @@ from .base import Module, get_size_to_one
 
 
 class _BatchNorm(Module, nn.modules.batchnorm._BatchNorm):
-    def __init__(self, num_features: int, eps: float = 0.00001, momentum: float = 0.1, affine: bool = True, track_running_stats: bool = True, device=None, dtype=None) -> None:
+    def __init__(
+        self,
+        num_features: int,
+        eps: float = 0.00001,
+        momentum: float = 0.1,
+        affine: bool = True,
+        track_running_stats: bool = True,
+        device=None,
+        dtype=None,
+    ) -> None:
         super().__init__(num_features, eps, momentum, affine, track_running_stats, device, dtype)
         assert self.track_running_stats, "Please set track_running_stats = True"
 
@@ -28,6 +37,8 @@ class _BatchNorm(Module, nn.modules.batchnorm._BatchNorm):
         weight = self.weight if self.affine else torch.ones(self.num_features, device=input.device, dtype=input.dtype)
         real_weight = (weight / torch.sqrt(self.running_var + self.eps)).view(*size, *get_size_to_one(origin_size))
         weight_graph *= real_weight
+
+        print("weight:", real_weight.view(-1))
 
         return weight_graph, bias_graph
 

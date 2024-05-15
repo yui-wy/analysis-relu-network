@@ -4,6 +4,7 @@ from torch import Tensor
 
 from torchays import nn
 from torchays.nn.modules import get_origin_size
+from torchays.nn.modules import WEIGHT_GRAPH, BIAS_GRAPH
 
 GPU_ID = 0
 device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
@@ -49,8 +50,8 @@ data = torch.randn(2, 3, 8, 8).to(device)
 net.graph()
 with torch.no_grad():
     output, graph = net(data)
-    weight_graph, bias_graph = graph.get("weight_graph"), graph.get("bias_graph")
+    weight, weight = graph.get(WEIGHT_GRAPH), graph.get(BIAS_GRAPH)
     print(output)
     for i in range(output.size(0)):
-        output = (weight_graph[i] * data[i]).sum(dim=(1, 2, 3)) + bias_graph[i]
+        output = (weight[i] * data[i]).sum(dim=(1, 2, 3)) + weight[i]
         print(output)

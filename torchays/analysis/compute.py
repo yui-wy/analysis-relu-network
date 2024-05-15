@@ -7,6 +7,7 @@ import torch
 from scipy.optimize import minimize
 
 from ..nn import Module
+from ..nn.modules import WEIGHT_GRAPH, BIAS_GRAPH
 from ..utils import get_logger
 from .handler import BaseHandler, DefaultHandler
 from .model import Model
@@ -120,7 +121,11 @@ class ReLUNets:
             print the information (Default: print in console)(logger.info(...)).
     """
 
-    def __init__(self, device=torch.device("cpu"), logger=None):
+    def __init__(
+        self,
+        device=torch.device("cpu"),
+        logger=None,
+    ):
         self.device = device
         self.one = torch.ones(1).double()
         self.logger = logger or get_logger("AnalysisReLUNetUtils-Console")
@@ -149,7 +154,7 @@ class ReLUNets:
         with torch.no_grad():
             _, graph = self.net.forward_layer(x, depth=depth)
             # (1, *output.size(), *input.size())
-            weight_graph, bias_graph = graph["weight_graph"], graph["bias_graph"]
+            weight_graph, bias_graph = graph[WEIGHT_GRAPH], graph[BIAS_GRAPH]
             # (output.num, input.num)
             weight_graph = weight_graph.reshape(-1, x.size()[1:].numel())
             # (output.num, 1)
@@ -186,7 +191,7 @@ class ReLUNets:
             for i in range(functions.shape[0])
         ]
         constraints.extend(self.constraints)
-        # TODO: 质心寻找, 非优化方法
+        # TODO: 质心寻找, 非优化方法, 只要找到内在一点即可, 无特殊要求.
         result = self._minimize(radius(), x, constraints, jac_radius(functions[0]), tol=1e-10)
         inner_point, r = result.x[:-1], result.x[-1]
         result = np.matmul(functions[:, :-1], inner_point.T) + functions[:, -1]
@@ -201,12 +206,11 @@ class ReLUNets:
         functions: torch.Tensor,
         region: torch.Tensor,
         constraint_functions: np.ndarray,
-        child_region: torch.Tensor,
-        next_inner_point: np.ndarray,
+        c_region: torch.Tensor,
+        c_inner_point: np.ndarray,
     ):
-        """获取区域内的一点, 并且得到区域的边界"""
         o_functions, o_region, neighbor_regions = [], [], []
-        filter_region = torch.zeros_like(child_region).type(torch.int8)
+        filter_region = torch.zeros_like(c_region).type(torch.int8)
         constraints = [
             constraint(
                 linear_error(constraint_functions[i]),
@@ -219,14 +223,14 @@ class ReLUNets:
             function = square(constraint_functions[i])
             constraints[i]["fun"] = linear(constraint_functions[i])
             # TODO: 优化寻找区域边界的速率
-            result = self._minimize(function, next_inner_point, constraints, jac_square(constraint_functions[i]))
+            result = self._minimize(function, c_inner_point, constraints, jac_square(constraint_functions[i]))
             if result.fun > 1e-15:
                 continue
             o_functions.append(functions[i])
             o_region.append(region[i])
             # Find the neighbor rigon.
-            if i < child_region.shape[0]:
-                neighbor_region = child_region.clone()
+            if i < c_region.shape[0]:
+                neighbor_region = c_region.clone()
                 neighbor_region[i] = -region[i]
                 neighbor_regions.append(neighbor_region)
                 filter_region[i] = region[i]
@@ -236,31 +240,31 @@ class ReLUNets:
 
     def _optimize_child_region(
         self,
-        child_functions: torch.Tensor,
-        child_region: torch.Tensor,
-        parent_functions: torch.Tensor,
-        parent_region: torch.Tensor,
+        c_functions: torch.Tensor,
+        c_region: torch.Tensor,
+        p_functions: torch.Tensor,
+        p_region: torch.Tensor,
         inner_point: np.ndarray,
     ) -> Tuple[np.ndarray, torch.Tensor, torch.Tensor, torch.Tensor, list]:
         """
         1. 获取区域是否存在; 2. 区域存在, 获取其中一个点; 3. 获取区域的相邻区域;
         """
-        functions, region = torch.cat([child_functions, parent_functions], dim=0), torch.cat([child_region, parent_region], dim=0)
+        functions, region = torch.cat([c_functions, p_functions], dim=0), torch.cat([c_region, p_region], dim=0)
         constraint_functions = (region.view(-1, 1) * functions).numpy()
         # 1. checking whether the region exists, the inner point will be obtained if existed.
-        child_inner_point = self._find_region_inner_point(constraint_functions, inner_point)
-        if child_inner_point is None:
+        c_inner_point = self._find_region_inner_point(constraint_functions, inner_point)
+        if c_inner_point is None:
             return None, [], [], None, []
         # 2. find the least edges functions to express this region and obtain neighbor regions.
-        optimize_child_region_result = self._optimize_region(functions, region, constraint_functions, child_region, child_inner_point)
-        return child_inner_point, *optimize_child_region_result
+        optimize_child_region_result = self._optimize_region(functions, region, constraint_functions, c_region, c_inner_point)
+        return c_inner_point, *optimize_child_region_result
 
     @_log_time("compute intersect", 2)
     def _compute_intersect(
         self,
         functions: torch.Tensor,
-        parent_functions: torch.Tensor,
-        parent_regions: torch.Tensor,
+        p_functions: torch.Tensor,
+        p_regions: torch.Tensor,
         x: np.ndarray,
     ):
         """
@@ -271,15 +275,15 @@ class ReLUNets:
         *    min(func(x)^2);
         *    s.t. pFunc(x) >= 0
         """
-        parenet_functions = parent_regions.view(-1, 1) * parent_functions
-        parenet_functions, functions = parenet_functions.numpy(), functions.numpy()
+        pn_functions = p_regions.view(-1, 1) * p_functions
+        pn_functions, functions = pn_functions.numpy(), functions.numpy()
         new_functions, inner_points = [], []
         constraints = [
             constraint(
-                linear(parenet_functions[i]),
-                jac_linear(parenet_functions[i]),
+                linear(pn_functions[i]),
+                jac_linear(pn_functions[i]),
             )
-            for i in range(parenet_functions.shape[0])
+            for i in range(pn_functions.shape[0])
         ]
         constraints.extend(self.constraints)
         # Is the linear function though the region.
@@ -312,26 +316,27 @@ class ReLUNets:
     @_log_time("get layer regions", 2)
     def _get_layer_regions(
         self,
-        child_functions: torch.Tensor,
-        parent_functions: torch.Tensor,
-        parent_region: torch.Tensor,
-        inner_point: np.ndarray,
+        c_functions: torch.Tensor,
+        p_functions: torch.Tensor,
+        p_region: torch.Tensor,
+        p_inner_point: np.ndarray,
         depth: int,
         set_register: Callable[[np.ndarray, torch.Tensor, torch.Tensor, int], None],
     ):
         """
         验证hyperplane arrangement的存在性(子平面, 是否在父区域上具有交集)
         """
-        intersect_funs, intersect_funs_points = self._compute_intersect(child_functions, parent_functions, parent_region, inner_point)
+        intersect_funs, intersect_funs_points = self._compute_intersect(c_functions, p_functions, p_region, p_inner_point)
         counts, n_regions = 0, 0
         if intersect_funs is None:
-            counts += self._layer_region_counts(inner_point, parent_functions, parent_region, depth, set_register)
+            counts += self._layer_region_counts(p_inner_point, p_functions, p_region, depth, set_register)
         else:
             # Regist some areas in WapperRegion for iterate.
-            child_regions = self._get_regions(intersect_funs_points, intersect_funs)
-            layer_regions = WapperRegion(child_regions)
-            for child_region in layer_regions:
-                c_inner_point, c_functions, c_region, filter_region, neighbor_regions = self._optimize_child_region(intersect_funs, child_region, parent_functions, parent_region, inner_point)
+            c_regions = self._get_regions(intersect_funs_points, intersect_funs)
+            layer_regions = WapperRegion(c_regions)
+            # TODO: Muti-Processes
+            for c_region in layer_regions:
+                c_inner_point, c_functions, c_region, filter_region, neighbor_regions = self._optimize_child_region(intersect_funs, c_region, p_functions, p_region, p_inner_point)
                 if len(c_functions) == 0:
                     continue
                 # Add the region to prevent counting again.
@@ -340,7 +345,7 @@ class ReLUNets:
                 layer_regions.regist_regions(neighbor_regions)
                 n_regions += 1
                 counts += self._layer_region_counts(c_inner_point, c_functions, c_region, depth, set_register)
-        self.handler.inner_hyperplanes_handler(parent_functions, parent_region, child_functions, intersect_funs, n_regions, depth)
+        self.handler.inner_hyperplanes_handler(p_functions, p_region, c_functions, intersect_funs, n_regions, depth)
         return counts
 
     def _get_regions(self, x: torch.Tensor, functions: torch.Tensor) -> torch.Tensor:
@@ -368,18 +373,18 @@ class ReLUNets:
     def _get_counts(self, region_set: RegionSet) -> int:
         counts: int = 0
         current_depth: int = -1
-        for inner_point, parent_functions, parent_region, depth in region_set:
+        for p_inner_point, p_functions, p_region, depth in region_set:
             if depth != current_depth:
                 current_depth = depth
                 self.logger.info(f"Depth: {current_depth}")
-            child_functions = self._functions(inner_point, depth)
+            child_functions = self._functions(p_inner_point, depth)
             # get the region number of one layer.
             self.logger.info(f"Start get layers. Depth: {depth}, ")
             counts += self._get_layer_regions(
                 child_functions,
-                parent_functions,
-                parent_region,
-                inner_point,
+                p_functions,
+                p_region,
+                p_inner_point,
                 depth,
                 region_set.register,
             )
@@ -413,9 +418,9 @@ class ReLUNets:
         self._init_constraints()
         # initialize the parameters
         dim = torch.Size(input_size).numel()
-        parent_functions, parent_region, inner_point = _generate_bound_regions(bounds, dim)
+        p_functions, p_region, p_inner_point = _generate_bound_regions(bounds, dim)
         # start
-        region_set = RegionSet(inner_point, parent_functions, parent_region)
+        region_set = RegionSet(p_inner_point, p_functions, p_region)
         counts = self._get_counts(region_set)
         self.logger.info(f"Region counts: {counts}.")
         return counts

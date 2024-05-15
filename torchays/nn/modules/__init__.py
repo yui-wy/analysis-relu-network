@@ -1,6 +1,7 @@
 from .activation import LeakyRule, ReLU
 from .base import BIAS_GRAPH, WEIGHT_GRAPH, Module, get_input, get_origin_size, get_size_to_one
 from .batchnorm import BatchNorm1d, BatchNorm2d, BatchNorm3d, BatchNormNone
+from .norm import Norm1d, Norm2d, Norm3d, NormNone
 from .container import Sequential
 from .conv import Conv2d
 from .linear import Linear
@@ -15,6 +16,10 @@ __all__ = [
     "BatchNorm2d",
     "BatchNorm3d",
     "BatchNormNone",
+    "Norm1d",
+    "Norm2d",
+    "Norm3d",
+    "NormNone",
     "Sequential",
     "Conv2d",
     "Linear",

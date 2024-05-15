@@ -1,4 +1,3 @@
-import imp
 import math
 import os
 from typing import Any, Callable, Dict, List, Tuple
@@ -8,8 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polytope as pc
 import torch
-from mpl_toolkits.mplot3d.axes3d import Axes3D
-from torch._C import device
 from torch.utils import data
 
 from dataset import Dataset
@@ -459,7 +456,7 @@ class LinearRegion(_base):
         is_draw: bool = True,
         is_hpas: bool = True,
         is_draw_3d: bool = False,
-        device: device = torch.device('cpu'),
+        device: torch.device = torch.device('cpu'),
     ) -> None:
         super().__init__(
             save_dir,
@@ -537,7 +534,7 @@ class Experiment(_base):
         init_fun: Callable[..., None],
         *,
         save_epoch: List[int] = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100],
-        device: device = torch.device('cpu'),
+        device: torch.device = torch.device('cpu'),
     ) -> None:
         super().__init__(
             save_dir,
