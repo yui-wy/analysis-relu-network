@@ -41,8 +41,8 @@ IS_HPAS = False
 
 # Analysis
 IS_ANALYSIS = True
-# Only draw the dataset distribution
-ONLY_DATASET = True
+# draw the dataset distribution
+WITH_DATASET = True
 
 
 def init_fun():
@@ -107,6 +107,6 @@ if __name__ == "__main__":
     if IS_ANALYSIS:
         analysis = Analysis(
             root_dir=save_dir,
-            only_dataset=ONLY_DATASET,
+            with_dataset=WITH_DATASET,
         )
         analysis()

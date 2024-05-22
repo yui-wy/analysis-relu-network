@@ -86,6 +86,7 @@ class TrainToy(_base):
         max_epoch: int = 100,
         batch_size: int = 32,
         lr: float = 0.001,
+        train_handler: Callable[[nn.Module, int, int, int, torch.Tensor, torch.Tensor, str], None] = None,
         device: torch.device = torch.device('cpu'),
     ) -> None:
         super().__init__(
@@ -98,25 +99,26 @@ class TrainToy(_base):
         self.max_epoch = max_epoch
         self.batch_size = batch_size
         self.lr = lr
+        self.train_handler = train_handler
 
     def train(self):
-        net, dataset, n_classes = self._init_model()
-        trainLoader = data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True, pin_memory=True)
-        totalStep = math.ceil(len(dataset) / self.batch_size)
+        net, dataset, _ = self._init_model()
+        train_loader = data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True, pin_memory=True)
+        total_step = math.ceil(len(dataset) / self.batch_size)
 
         optim = torch.optim.Adam(net.parameters(), lr=self.lr, weight_decay=1e-4, betas=[0.9, 0.999])
         ce = torch.nn.CrossEntropyLoss()
 
         save_step = [v for v in self.save_epoch if v < 1]
-        steps = [math.floor(v * totalStep) for v in save_step]
+        steps = [math.floor(v * total_step) for v in save_step]
         torch.save(net.state_dict(), os.path.join(self.model_dir, f'net_0.pth'))
         for epoch in range(self.max_epoch):
             net.train()
-            for j, (x, y) in enumerate(trainLoader, 1):
+            for j, (x, y) in enumerate(train_loader, 1):
                 x: torch.Tensor = x.float().to(self.device)
                 y: torch.Tensor = y.long().to(self.device)
                 x = net(x)
-                loss = ce(x, y)
+                loss: torch.Tensor = ce(x, y)
                 optim.zero_grad()
                 loss.backward()
                 optim.step()
@@ -127,7 +129,10 @@ class TrainToy(_base):
                     idx = steps.index(j)
                     torch.save(net.state_dict(), os.path.join(self.model_dir, f'net_{save_step[idx]}.pth'))
                     net.train()
-                print(f"Epoch: {epoch+1} / {self.max_epoch}, Step: {j} / {totalStep}, Loss: {loss:.4f}, Acc: {acc:.4f}")
+                # print epoch, step.
+                if self.train_handler is not None:
+                    self.train_handler(net, epoch, j, total_step, loss, acc, self.model_dir)
+                print(f"Epoch: {epoch+1} / {self.max_epoch}, Step: {j} / {total_step}, Loss: {loss:.4f}, Acc: {acc:.4f}")
 
             print(f"Epoch: {epoch+1} / {self.max_epoch}")
             if (epoch + 1) in self.save_epoch:
@@ -135,7 +140,7 @@ class TrainToy(_base):
                 net.eval()
                 torch.save(net.state_dict(), os.path.join(self.model_dir, f'net_{epoch+1}.pth'))
         with torch.no_grad():
-            acc = self.val_net(net, trainLoader).cpu().numpy()
+            acc = self.val_net(net, train_loader).cpu().numpy()
             print(f'Accuracy: {acc:.4f}')
 
 
@@ -551,6 +556,7 @@ class Experiment(_base):
         max_epoch: int = 100,
         batch_size: int = 32,
         lr: float = 0.001,
+        train_handler: Callable[[nn.Module, int, int, int, torch.Tensor, torch.Tensor, str], None] = None,
     ):
         toy_train = TrainToy(
             save_dir=self.save_dir,
@@ -560,6 +566,7 @@ class Experiment(_base):
             max_epoch=max_epoch,
             batch_size=batch_size,
             lr=lr,
+            train_handler=train_handler,
             device=self.device,
         )
         self.append(toy_train.train)

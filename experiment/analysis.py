@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -47,18 +47,24 @@ def default(savePath, xlabel='', ylabel='', mode='png', isGray=False, isLegend=T
 
 
 class Analysis:
-    def __init__(self, root_dir, only_dataset: bool = False) -> None:
+    def __init__(
+        self,
+        root_dir,
+        with_dataset: bool = False,
+        with_bn: bool = False,
+    ) -> None:
         self.root_dir = root_dir
-        self.only_dataset = only_dataset
+        self.with_dataset = with_dataset
+        self.with_bn = with_bn
 
     def analysis(self) -> None:
         # draw dataset distribution
-        self.draw_dataset()
-        if self.only_dataset:
-            return
+        self.common()
         # get data
         experiment_dict = {}
         for tag in os.listdir(self.root_dir):
+            if tag in ["bn_exp", "analysis"]:
+                continue
             tag_dir = os.path.join(self.root_dir, tag)
             if not os.path.isdir(tag_dir):
                 continue
@@ -69,7 +75,6 @@ class Analysis:
                 net_reigions = torch.load(os.path.join(experiment_dir, epoch_fold, 'net_regions.pkl'))
                 tag_dict[epoch] = net_reigions
             experiment_dict[tag] = tag_dict
-
         # save dir
         save_dir = os.path.join(self.root_dir, "analysis")
         os.makedirs(save_dir, exist_ok=True)
@@ -79,15 +84,14 @@ class Analysis:
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         self.analysis(*args, **kwds)
 
-    def draw(self, experiment_dict: Dict, save_dir: str):
-        funs = [
-            self.save_region_epoch_tabel,
-            self.draw_region_epoch_plot,
-            self.draw_region_acc_plot,
-            self.draw_epoch_acc_plot,
-        ]
+    def common(self):
+        funs = []
+        if self.with_dataset:
+            funs.append(self.draw_dataset)
+        if self.with_bn:
+            funs.append(self.analysis_bn)
         for fun in funs:
-            fun(experiment_dict, save_dir)
+            fun()
 
     def draw_dataset(self):
         dataset_path = os.path.join(self.root_dir, 'dataset.pkl')
@@ -99,6 +103,53 @@ class Analysis:
             ax.set_ylim(-1, 1)
             for i in range(n_classes):
                 ax.scatter(x[y == i, 0], x[y == i, 1], color=color(i))
+
+    def analysis_bn(self):
+        bn_path = os.path.join(self.root_dir, 'batch_norm.pkl')
+        bn_data: Dict[str, Dict[str, Dict[str, torch.Tensor]]] = torch.load(bn_path)
+        save_dict: Dict[str, Dict[int, Dict[str, List[float]]] | List[str]] = dict()
+        step_list = list()
+        for step_name, step_data in bn_data.items():
+            step_list.append(step_name)
+            for layer_name, layer_data in step_data.items():
+                for name, data in layer_data.items():
+                    if name in ["num_batches_tracked"]:
+                        continue
+                    for i in range(len(data)):
+                        neruals = save_dict.get(layer_name, dict())
+                        values = neruals.get(i, dict())
+                        value = values.get(name, list())
+                        value.append(data[i])
+                        values[name] = value
+                        neruals[i] = values
+                        save_dict[layer_name] = neruals
+        save_dict["steps"] = step_list
+        self._draw_bn_parameters(save_dict)
+
+    def _draw_bn_parameters(self, save_dict: Dict[str, Dict[int, Dict[str, List[float]]]]):
+        save_dir = os.path.join(self.root_dir, "bn_exp")
+        os.makedirs(save_dir, exist_ok=True)
+        step_list = save_dict.pop("steps", list())
+        for layer_name, neruals in save_dict.items():
+            for j, values in neruals.items():
+                layer_dir = os.path.join(save_dir, layer_name)
+                os.makedirs(layer_dir, exist_ok=True)
+                save_path = os.path.join(layer_dir, f"nerual_{j}.png")
+                with default(save_path, 'steps', 'values') as ax:
+                    i = 0
+                    for name, value in values.items():
+                        ax.plot(range(len(step_list)), value, label=name, color=color(i))
+                        i += 1
+
+    def draw(self, experiment_dict: Dict, save_dir: str):
+        funs = [
+            self.save_region_epoch_tabel,
+            self.draw_region_epoch_plot,
+            self.draw_region_acc_plot,
+            self.draw_epoch_acc_plot,
+        ]
+        for fun in funs:
+            fun(experiment_dict, save_dir)
 
     def save_region_epoch_tabel(self, experiment_dict: Dict, save_dir):
         savePath = os.path.join(save_dir, "regionEpoch.csv")

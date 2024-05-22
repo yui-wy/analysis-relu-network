@@ -38,8 +38,6 @@ class _BatchNorm(Module, nn.modules.batchnorm._BatchNorm):
         real_weight = (weight / torch.sqrt(self.running_var + self.eps)).view(*size, *get_size_to_one(origin_size))
         weight_graph *= real_weight
 
-        print("weight:", real_weight.view(-1))
-
         return weight_graph, bias_graph
 
 
