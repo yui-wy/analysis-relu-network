@@ -15,21 +15,21 @@ from torchays.nn.modules.norm import Norm1d
 GPU_ID = 0
 SEED = 5
 NAME = "Linear-single-bn"
-DATASET = MOON
+DATASET = GAUSSIAN_QUANTILES
 N_LAYERS = [32]
 # Dataset
-N_SAMPLES = 500
-DATASET_BIAS = 0
+N_SAMPLES = 1000
+DATASET_BIAS = 1
 # only GAUSSIAN_QUANTILES
-N_CLASSES = 2
+N_CLASSES = 5
 # only RANDOM
 IN_FEATURES = 2
 # Training
-MAX_EPOCH = 100
-SAVE_EPOCH = [0, 2, 4, 8, 10, 30, 50, 100]
+MAX_EPOCH = 5000
+SAVE_EPOCH = [0, 10, 50, 100, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 5000]
 BATCH_SIZE = 32
 LR = 1e-3
-BOUND = (-1, 1)
+BOUND = (0, 2)
 
 # Experiment
 IS_EXPERIMENT = True
@@ -59,6 +59,9 @@ def init_fun():
 
 
 def norm(num_features):
+    is_norm = False
+    if not is_norm:
+        return BatchNormNone(num_features)
     # freeze parameters
     freeze = True
     # set init parameters
@@ -130,7 +133,6 @@ def train_handler(
         weight_bn = weight / p
         # bias_bn = b - w*mean/√(var)
         bias_bn = bias - weight_bn * running_mean
-        print(weight)
         save_dict = {
             "weight": weight,
             "bias": bias,
@@ -159,10 +161,11 @@ if __name__ == "__main__":
             device=device,
         )
         if IS_TRAIN:
+            default_handler = train_handler if IS_BN else None
             exp.train(
                 max_epoch=MAX_EPOCH,
                 batch_size=BATCH_SIZE,
-                train_handler=train_handler,
+                train_handler=default_handler,
                 lr=LR,
             )
         exp.linear_region(
@@ -172,9 +175,10 @@ if __name__ == "__main__":
             is_draw_3d=IS_DRAW_3D,
         )
         exp()
-        # 保存batch_norm
-        batch_norm_path = os.path.join(save_dir, f"batch_norm.pkl")
-        torch.save(batch_norm_data, batch_norm_path)
+        if IS_BN:
+            # 保存batch_norm
+            batch_norm_path = os.path.join(exp.get_root(), f"batch_norm.pkl")
+            torch.save(batch_norm_data, batch_norm_path)
     if IS_ANALYSIS:
         analysis = Analysis(
             root_dir=save_dir,

@@ -1,3 +1,4 @@
+from copy import deepcopy
 import math
 import os
 from typing import Any, Callable, Dict, List, Tuple
@@ -45,6 +46,12 @@ class _base:
         self.dataset = dataset
         self.save_epoch = save_epoch
         self.device = device
+        self.root_dir = None
+
+    def get_root(self):
+        if self.root_dir is None:
+            self.root_dir = os.path.join(self.save_dir, self.net(0).name)
+        return self.root_dir
 
     def _init_model(self):
         dataset, n_classes = self.dataset()
@@ -112,8 +119,10 @@ class TrainToy(_base):
         save_step = [v for v in self.save_epoch if v < 1]
         steps = [math.floor(v * total_step) for v in save_step]
         torch.save(net.state_dict(), os.path.join(self.model_dir, f'net_0.pth'))
+        best_acc, best_dict, best_epoch = 0, {}, 0
         for epoch in range(self.max_epoch):
             net.train()
+            loss_sum = 0
             for j, (x, y) in enumerate(train_loader, 1):
                 x: torch.Tensor = x.float().to(self.device)
                 y: torch.Tensor = y.long().to(self.device)
@@ -123,25 +132,30 @@ class TrainToy(_base):
                 loss.backward()
                 optim.step()
                 acc = accuracy(x, y) / x.size(0)
+                loss_sum += loss
 
                 if (epoch + 1) == 1 and (j in steps):
                     net.eval()
                     idx = steps.index(j)
                     torch.save(net.state_dict(), os.path.join(self.model_dir, f'net_{save_step[idx]}.pth'))
                     net.train()
-                # print epoch, step.
                 if self.train_handler is not None:
                     self.train_handler(net, epoch, j, total_step, loss, acc, self.model_dir)
-                print(f"Epoch: {epoch+1} / {self.max_epoch}, Step: {j} / {total_step}, Loss: {loss:.4f}, Acc: {acc:.4f}")
-
-            print(f"Epoch: {epoch+1} / {self.max_epoch}")
+                # print(f"Epoch: {epoch+1} / {self.max_epoch}, Step: {j} / {total_step}, Loss: {loss:.4f}, Acc: {acc:.4f}")
+            net.eval()
             if (epoch + 1) in self.save_epoch:
                 print(f"Save net: net_{epoch+1}.pth")
-                net.eval()
                 torch.save(net.state_dict(), os.path.join(self.model_dir, f'net_{epoch+1}.pth'))
-        with torch.no_grad():
-            acc = self.val_net(net, train_loader).cpu().numpy()
-            print(f'Accuracy: {acc:.4f}')
+            with torch.no_grad():
+                loss_sum = loss_sum / total_step
+                acc = self.val_net(net, train_loader).cpu().numpy()
+                print(f'Epoch: {epoch+1} / {self.max_epoch}, Loss: {loss_sum:.4f}, Accuracy: {acc:.4f}')
+                if acc > best_acc:
+                    best_acc = acc
+                    best_epoch = epoch
+                    best_dict = deepcopy(net.state_dict())
+        torch.save(best_dict, os.path.join(self.model_dir, f'net_best_{best_epoch+1}.pth'))
+        print(f'Best_Epoch: {best_epoch+1} / {self.max_epoch}, Accuracy: {best_acc:.4f}')
 
 
 class DrawRegionImage:
@@ -482,8 +496,8 @@ class LinearRegion(_base):
         model_list = os.listdir(self.model_dir)
         with torch.no_grad():
             for model_name in model_list:
-                epoch = float(model_name[4:-4])
-                if epoch not in self.save_epoch:
+                epoch = float(model_name.split("_")[-1][:-4])
+                if epoch not in self.save_epoch and "best" not in model_name:
                     continue
                 print(f"Solve fileName: {model_name} ....")
                 save_dir = os.path.join(self.experiment_dir, os.path.splitext(model_name)[0])
