@@ -42,7 +42,8 @@ IS_DRAW = True
 # is drawing the 3d region picture.
 IS_DRAW_3D = False
 # is handlering the hyperplanes arrangement.
-IS_HPAS = False
+IS_DRAW_HPAS = False
+IS_STATISTIC_HPAS = True
 
 # Analysis
 IS_ANALYSIS = True
@@ -171,8 +172,9 @@ if __name__ == "__main__":
         exp.linear_region(
             bounds=BOUND,
             is_draw=IS_DRAW,
-            is_hpas=IS_HPAS,
             is_draw_3d=IS_DRAW_3D,
+            is_draw_hpas=IS_DRAW_HPAS,
+            is_statistic_hpas=IS_STATISTIC_HPAS,
         )
         exp()
         if IS_BN:

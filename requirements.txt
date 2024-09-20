@@ -1,4 +1,5 @@
 torch
+torchvision
 polytope
 numpy
 scikit-learn

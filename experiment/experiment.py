@@ -7,6 +7,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import polytope as pc
+from sympy import count_ops
 import torch
 from torch.utils import data
 
@@ -322,6 +323,56 @@ class HyperplaneArrangements:
     def _check_dim(self, hpa: HyperplaneArrangement):
         return hpa.p_funs.size(1) - 1 == 2
 
+    def statistics_intersect(self):
+        # 统计每一层与父区域相交的神经元数量。
+        # 在不同父区域下，同一个神经元可能会出现中间态与非中间态
+        p_dir = os.path.join(self.root_dir, "hpa_statistics")
+        os.makedirs(p_dir, exist_ok=True)
+        csv_counts_file, csv_scales_file = os.path.join(p_dir, "counts.csv"), os.path.join(p_dir, "scales.csv")
+        counts_str, scales_str = "", ""
+
+        def save_file(buff, file_path):
+            with open(file_path, 'w') as w:
+                w.write(buff)
+                w.close()
+
+        def csv_str(buff: str, int_list: List[int]):
+            str_list = list(map(str, int_list))
+            str_buff = ",".join(str_list)
+            return buff + str_buff + "\r\n"
+
+        statistics = self._get_statistics()
+        for depth, statistic in statistics.items():
+            neural_num: int = statistic.get("neural_num")
+            intersect_counts: List = statistic.get("intersect_counts")
+            intersect_scales: List = statistic.get("intersect_scales")
+            # csv格式保存
+            counts_str = csv_str(counts_str, intersect_counts)
+            scales_str = csv_str(scales_str, intersect_scales)
+        save_file(counts_str, csv_counts_file)
+        save_file(scales_str, csv_scales_file)
+
+    def _get_statistics(self) -> Dict[str, Dict[str, int | List]]:
+        statistics = dict()
+        for depth, hpas in self.hyperplane_arrangements.items():
+            intersect_counts = []
+            intersect_scales = []
+            neural_num = -1
+            for hpa in hpas:
+                if neural_num == -1:
+                    neural_num = len(hpa.c_funs)
+                # 中间神经元数量
+                # 绘制统计图
+                intersects = 0 if hpa.intersect_funs is None else len(hpa.intersect_funs)
+                intersect_counts.append(intersects)
+                intersect_scales.append(intersects / neural_num)
+            statistic = dict()
+            statistic["neural_num"] = neural_num
+            statistic["intersect_counts"] = intersect_counts
+            statistic["intersect_scales"] = intersect_scales
+            statistics[depth] = statistic
+        return statistics
+
     def draw_hyperplane_arrangments(self):
         p_dir = os.path.join(self.root_dir, "hyperplane_arrangments")
         for depth, hpas in self.hyperplane_arrangements.items():
@@ -415,10 +466,12 @@ class HyperplaneArrangements:
         }
         torch.save(data, save_path)
 
-    def run(self, is_draw=False):
+    def run(self, is_draw=False, is_statistic=True):
         funs = [self.save]
         if is_draw:
             funs.append(self.draw_hyperplane_arrangments)
+        if is_statistic:
+            funs.append(self.statistics_intersect)
         for fun in funs:
             fun()
 
@@ -473,8 +526,9 @@ class LinearRegion(_base):
         save_epoch: List[int] = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100],
         bounds: Tuple[float] = (-1, 1),
         is_draw: bool = True,
-        is_hpas: bool = True,
         is_draw_3d: bool = False,
+        is_draw_hpas: bool = False,
+        is_statistic_hpas: bool = True,
         device: torch.device = torch.device('cpu'),
     ) -> None:
         super().__init__(
@@ -486,8 +540,10 @@ class LinearRegion(_base):
         )
         self.bounds = bounds
         self.is_draw = is_draw
-        self.is_hpas = is_hpas
         self.is_draw_3d = is_draw_3d
+        self.is_draw_hpas = is_draw_hpas
+        self.is_statistic_hpas = is_statistic_hpas
+        self.is_hpas = is_draw_hpas or is_statistic_hpas
 
     def get_region(self):
         net, dataset, n_classes = self._init_model()
@@ -531,8 +587,15 @@ class LinearRegion(_base):
                     )
                     drawReginImage.draw(self.is_draw_3d)
                 if self.is_hpas:
-                    hpas = HyperplaneArrangements(save_dir, handler.hyperplane_arrangements)
-                    hpas.run(self.is_draw)
+                    hpas = HyperplaneArrangements(
+                        save_dir,
+                        handler.hyperplane_arrangements,
+                        self.bounds,
+                    )
+                    hpas.run(
+                        is_draw=self.is_draw_hpas,
+                        is_statistic=self.is_statistic_hpas,
+                    )
 
                 dataSaveDict = {
                     "funcs": handler.funs,
@@ -589,8 +652,9 @@ class Experiment(_base):
     def linear_region(
         self,
         is_draw: bool = True,
-        is_hpas: bool = True,
         is_draw_3d: bool = False,
+        is_draw_hpas: bool = False,
+        is_statistic_hpas: bool = True,
         bounds: Tuple[float] = (-1, 1),
     ):
         linear_region = LinearRegion(
@@ -599,8 +663,9 @@ class Experiment(_base):
             dataset=self.dataset,
             save_epoch=self.save_epoch,
             is_draw=is_draw,
-            is_hpas=is_hpas,
             is_draw_3d=is_draw_3d,
+            is_draw_hpas=is_draw_hpas,
+            is_statistic_hpas=is_statistic_hpas,
             bounds=bounds,
             device=self.device,
         )

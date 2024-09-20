@@ -106,6 +106,24 @@ class WapperRegion:
             self.regist_region(region)
 
 
+def _log_time(fun_name: str, indent: int = 0, is_log: bool = True):
+    def wapper(fun: Callable):
+        def new_func(self, *args, **kwargs):
+            if self.is_log_time:
+                return result
+            start = time.time()
+            result = fun(self, *args, **kwargs)
+            t = time.time() - start
+            self.logger.info(f"{' '*indent}[{fun_name}] took time: {t}s.")
+            return result
+
+        if is_log:
+            return new_func
+        return fun
+
+    return wapper
+
+
 class ReLUNets:
     """
     ReLUNets needs to ensure that the net has the function:
@@ -125,25 +143,12 @@ class ReLUNets:
         self,
         device=torch.device("cpu"),
         logger=None,
+        is_log_time: bool = False,
     ):
         self.device = device
         self.one = torch.ones(1).double()
         self.logger = logger or get_logger("AnalysisReLUNetUtils-Console")
-
-    def _log_time(fun_name: str, indent: int = 0, is_log: bool = True):
-        def wapper(fun: Callable):
-            def new_func(self, *args, **kwargs):
-                start = time.time()
-                result = fun(self, *args, **kwargs)
-                t = time.time() - start
-                self.logger.info(f"{' '*indent}[{fun_name}] took time: {t}s.")
-                return result
-
-            if is_log:
-                return new_func
-            return fun
-
-        return wapper
+        self.is_log_time = is_log_time
 
     def _compute_functions(self, x: np.ndarray, depth: int) -> torch.Tensor:
         """
@@ -209,6 +214,8 @@ class ReLUNets:
         c_region: torch.Tensor,
         c_inner_point: np.ndarray,
     ):
+        # 计算当前区域的区域边界函数，并且获取“邻居区域”
+        # 边界区域可以用来过滤重复区域。
         o_functions, o_region, neighbor_regions = [], [], []
         filter_region = torch.zeros_like(c_region).type(torch.int8)
         constraints = [
@@ -331,20 +338,20 @@ class ReLUNets:
         if intersect_funs is None:
             counts += self._layer_region_counts(p_inner_point, p_functions, p_region, depth, set_register)
         else:
-            # Regist some areas in WapperRegion for iterate.
             c_regions = self._get_regions(intersect_funs_points, intersect_funs)
+            # Regist some areas in WapperRegion for iterate.
             layer_regions = WapperRegion(c_regions)
             # TODO: Muti-Processes
             for c_region in layer_regions:
-                c_inner_point, c_functions, c_region, filter_region, neighbor_regions = self._optimize_child_region(intersect_funs, c_region, p_functions, p_region, p_inner_point)
-                if len(c_functions) == 0:
+                c_inner_point, c_m_functions, c_m_region, filter_region, neighbor_regions = self._optimize_child_region(intersect_funs, c_region, p_functions, p_region, p_inner_point)
+                if len(c_m_functions) == 0:
                     continue
                 # Add the region to prevent counting again.
                 layer_regions.update_filter(filter_region)
                 # Regist new regions for iterate.
                 layer_regions.regist_regions(neighbor_regions)
                 n_regions += 1
-                counts += self._layer_region_counts(c_inner_point, c_functions, c_region, depth, set_register)
+                counts += self._layer_region_counts(c_inner_point, c_m_functions, c_m_region, depth, set_register)
         self.handler.inner_hyperplanes_handler(p_functions, p_region, c_functions, intersect_funs, n_regions, depth)
         return counts
 
