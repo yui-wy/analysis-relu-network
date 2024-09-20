@@ -24,6 +24,15 @@ from torchays.graph import (
 from torchays.utils import get_logger
 
 EPSILON = 1e-16
+STATISTIC_COUNT = "statistic_count"
+STATISTIC_SCALE = "statistic_scale"
+NEURAL_NUM = "neural_num"
+
+
+def save_file(buff, file_path):
+    with open(file_path, 'w') as w:
+        w.write(buff)
+        w.close()
 
 
 def accuracy(x, classes):
@@ -328,29 +337,40 @@ class HyperplaneArrangements:
         # 在不同父区域下，同一个神经元可能会出现中间态与非中间态
         p_dir = os.path.join(self.root_dir, "hpa_statistics")
         os.makedirs(p_dir, exist_ok=True)
-        csv_counts_file, csv_scales_file = os.path.join(p_dir, "counts.csv"), os.path.join(p_dir, "scales.csv")
         counts_str, scales_str = "", ""
+        # MAP: [depth, Dict[name, [List[int]]]]
+        statistic_dict: Dict[int, Dict[str, List[int]]] = dict()
 
-        def save_file(buff, file_path):
-            with open(file_path, 'w') as w:
-                w.write(buff)
-                w.close()
-
-        def csv_str(buff: str, int_list: List[int]):
-            str_list = list(map(str, int_list))
+        def csv_str(buff: str, num_list: List[int | float]):
+            str_list = list(map(str, num_list))
             str_buff = ",".join(str_list)
             return buff + str_buff + "\r\n"
 
+        def statistic_fun(neural_num: int, num_list: List[int | float]):
+            statistic_list = [0] * (neural_num + 1)
+            for num in num_list:
+                statistic_list[num] += 1
+            return statistic_list
+
         statistics = self._get_statistics()
         for depth, statistic in statistics.items():
-            neural_num: int = statistic.get("neural_num")
-            intersect_counts: List = statistic.get("intersect_counts")
-            intersect_scales: List = statistic.get("intersect_scales")
-            # csv格式保存
+            neural_num: int = statistic.get(NEURAL_NUM)
+            intersect_counts: List[int] = statistic.get("intersect_counts")
+            intersect_scales: List[float] = statistic.get("intersect_scales")
             counts_str = csv_str(counts_str, intersect_counts)
             scales_str = csv_str(scales_str, intersect_scales)
-        save_file(counts_str, csv_counts_file)
-        save_file(scales_str, csv_scales_file)
+            # 统计期望与概率
+            depth_statistic: Dict[str, List[int | float]] = dict()
+            depth_statistic[NEURAL_NUM] = neural_num
+            depth_statistic[STATISTIC_COUNT] = statistic_fun(neural_num, intersect_counts)
+            depth_statistic[STATISTIC_SCALE] = statistic_fun(neural_num, intersect_scales)
+            statistic_dict[depth] = depth_statistic
+
+        # csv
+        save_file(counts_str, os.path.join(p_dir, "counts.csv"))
+        save_file(scales_str, os.path.join(p_dir, "scales.csv"))
+        # plot
+        self._draw_statistic(p_dir, statistic_dict)
 
     def _get_statistics(self) -> Dict[str, Dict[str, int | List]]:
         statistics = dict()
@@ -361,17 +381,29 @@ class HyperplaneArrangements:
             for hpa in hpas:
                 if neural_num == -1:
                     neural_num = len(hpa.c_funs)
-                # 中间神经元数量
-                # 绘制统计图
                 intersects = 0 if hpa.intersect_funs is None else len(hpa.intersect_funs)
                 intersect_counts.append(intersects)
                 intersect_scales.append(intersects / neural_num)
             statistic = dict()
-            statistic["neural_num"] = neural_num
+            statistic[NEURAL_NUM] = neural_num
             statistic["intersect_counts"] = intersect_counts
             statistic["intersect_scales"] = intersect_scales
             statistics[depth] = statistic
         return statistics
+
+    def _draw_statistic(self, dir: str, statistic_dict: Dict[int, Dict[str, List[int]]]):
+        fig = plt.figure(0, figsize=(8, 7), dpi=600)
+        ax = fig.subplots()
+        ax.cla()
+        ax.tick_params(labelsize=15)
+        max_neural_num = 0
+        for depth, depth_statistic in statistic_dict.items():
+            neural_num = depth_statistic.get(NEURAL_NUM)
+            if max_neural_num < neural_num:
+                max_neural_num = neural_num
+            count_list = depth_statistic.get(STATISTIC_COUNT)
+            scale_list = depth_statistic.get(STATISTIC_SCALE)
+            pass
 
     def draw_hyperplane_arrangments(self):
         p_dir = os.path.join(self.root_dir, "hyperplane_arrangments")
