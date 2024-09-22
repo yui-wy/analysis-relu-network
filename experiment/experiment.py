@@ -339,6 +339,7 @@ class HyperplaneArrangements:
         p_dir = os.path.join(self.root_dir, "hpa_statistics")
         os.makedirs(p_dir, exist_ok=True)
         counts_str, scales_str = "", ""
+        counts_statistic_str = ""
         # MAP: [depth, Dict[name, [List[int]]]]
         statistic_dict: Dict[int, Dict[str, List[int]]] = dict()
 
@@ -363,16 +364,21 @@ class HyperplaneArrangements:
             # 统计期望与概率
             depth_statistic: Dict[str, List[int | float]] = dict()
             depth_statistic[NEURAL_NUM] = neural_num
-            depth_statistic[STATISTIC_COUNT] = statistic_fun(neural_num, intersect_counts)
+            counts_list = statistic_fun(neural_num, intersect_counts)
+            counts_statistic_str += f"{depth}/{neural_num},"
+            counts_statistic_str = csv_str(counts_statistic_str, counts_list)
+            depth_statistic[STATISTIC_COUNT] = counts_list
             # depth_statistic[STATISTIC_SCALE] = statistic_fun(neural_num, intersect_scales)
             statistic_dict[depth] = depth_statistic
 
         # csv
         save_file(counts_str, os.path.join(p_dir, "counts.csv"))
         save_file(scales_str, os.path.join(p_dir, "scales.csv"))
-        # plot
+        # plot, 考虑概率和期望模型
         self._draw_statistic(p_dir, statistic_dict, STATISTIC_COUNT, "statistic counts", "counts")
         # self._draw_statistic(p_dir, statistic_dict, STATISTIC_COUNT, "statistic scales")
+        # statistic
+        save_file(counts_statistic_str, os.path.join(p_dir, "counts_statistic.csv"))
 
     def _get_statistics(self) -> Dict[str, Dict[str, int | List]]:
         statistics = dict()
@@ -416,7 +422,7 @@ class HyperplaneArrangements:
                 max_neural_num = neural_num
             x_list = depth_statistic.get(key)
             ax.plot(np.arange(neural_num + 1), x_list, label=name, color=color(depth))
-            legend_list.append(f"depth-{depth}")
+            legend_list.append(f"depth-{depth}/{neural_num}")
         ax.legend(legend_list)
         ax.set_xlabel("Neurals")
         ax.set_ylabel(y_label)
