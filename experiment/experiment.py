@@ -1,3 +1,4 @@
+from cProfile import label
 from copy import deepcopy
 import math
 import os
@@ -363,14 +364,15 @@ class HyperplaneArrangements:
             depth_statistic: Dict[str, List[int | float]] = dict()
             depth_statistic[NEURAL_NUM] = neural_num
             depth_statistic[STATISTIC_COUNT] = statistic_fun(neural_num, intersect_counts)
-            depth_statistic[STATISTIC_SCALE] = statistic_fun(neural_num, intersect_scales)
+            # depth_statistic[STATISTIC_SCALE] = statistic_fun(neural_num, intersect_scales)
             statistic_dict[depth] = depth_statistic
 
         # csv
         save_file(counts_str, os.path.join(p_dir, "counts.csv"))
         save_file(scales_str, os.path.join(p_dir, "scales.csv"))
         # plot
-        self._draw_statistic(p_dir, statistic_dict)
+        self._draw_statistic(p_dir, statistic_dict, STATISTIC_COUNT, "statistic counts", "counts")
+        # self._draw_statistic(p_dir, statistic_dict, STATISTIC_COUNT, "statistic scales")
 
     def _get_statistics(self) -> Dict[str, Dict[str, int | List]]:
         statistics = dict()
@@ -391,19 +393,38 @@ class HyperplaneArrangements:
             statistics[depth] = statistic
         return statistics
 
-    def _draw_statistic(self, dir: str, statistic_dict: Dict[int, Dict[str, List[int]]]):
+    def _draw_statistic(
+        self,
+        dir: str,
+        statistic_dict: Dict[int, Dict[str, List[int]]],
+        key: str,
+        name: str = "",
+        y_label: str = "",
+    ):
+        # 统计在不同深度下，有多少区域里面存在中间神经元，以及中间神经元的个数
+        if name == "":
+            name = key
         fig = plt.figure(0, figsize=(8, 7), dpi=600)
         ax = fig.subplots()
         ax.cla()
         ax.tick_params(labelsize=15)
         max_neural_num = 0
+        legend_list: List[str] = list()
         for depth, depth_statistic in statistic_dict.items():
             neural_num = depth_statistic.get(NEURAL_NUM)
             if max_neural_num < neural_num:
                 max_neural_num = neural_num
-            count_list = depth_statistic.get(STATISTIC_COUNT)
-            scale_list = depth_statistic.get(STATISTIC_SCALE)
-            pass
+            x_list = depth_statistic.get(key)
+            ax.plot(np.arange(neural_num + 1), x_list, label=name, color=color(depth))
+            legend_list.append(f"depth-{depth}")
+        ax.legend(legend_list)
+        ax.set_xlabel("Neurals")
+        ax.set_ylabel(y_label)
+        ax.set_xticks(np.arange(max_neural_num + 1))
+        fig_file = os.path.join(dir, f"{name}.jpg")
+        plt.savefig(fig_file, format="jpg")
+        plt.clf()
+        plt.close()
 
     def draw_hyperplane_arrangments(self):
         p_dir = os.path.join(self.root_dir, "hyperplane_arrangments")
