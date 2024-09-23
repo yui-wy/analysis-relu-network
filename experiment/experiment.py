@@ -339,7 +339,7 @@ class HyperplaneArrangements:
         p_dir = os.path.join(self.root_dir, "hpa_statistics")
         os.makedirs(p_dir, exist_ok=True)
         counts_str, scales_str = "", ""
-        counts_statistic_str = ""
+        counts_statistic_str, counts_scales_str = "", ""
         # MAP: [depth, Dict[name, [List[int]]]]
         statistic_dict: Dict[int, Dict[str, List[int]]] = dict()
 
@@ -365,10 +365,17 @@ class HyperplaneArrangements:
             depth_statistic: Dict[str, List[int | float]] = dict()
             depth_statistic[NEURAL_NUM] = neural_num
             counts_list = statistic_fun(neural_num, intersect_counts)
-            counts_statistic_str += f"{depth}/{neural_num},"
+            counts_array = np.array(counts_list)
+            counts_sum:np.ndarray = np.sum(counts_array)
+            # 统计每个区域中相交的超平面的数量
+            counts_statistic_str += f"{depth}/{neural_num}/{counts_sum.item()},"
             counts_statistic_str = csv_str(counts_statistic_str, counts_list)
+            # 统计每个区域中相交超平面的数量占比
+            counts_array: np.ndarray = counts_array / counts_sum
+            counts_scales_str += f"{depth}/{neural_num}/{counts_sum.item()},"
+            counts_scales_str = csv_str(counts_scales_str, counts_array.tolist())
+
             depth_statistic[STATISTIC_COUNT] = counts_list
-            # depth_statistic[STATISTIC_SCALE] = statistic_fun(neural_num, intersect_scales)
             statistic_dict[depth] = depth_statistic
 
         # csv
@@ -379,6 +386,7 @@ class HyperplaneArrangements:
         # self._draw_statistic(p_dir, statistic_dict, STATISTIC_COUNT, "statistic scales")
         # statistic
         save_file(counts_statistic_str, os.path.join(p_dir, "counts_statistic.csv"))
+        save_file(counts_scales_str, os.path.join(p_dir, "counts_scales.csv"))
 
     def _get_statistics(self) -> Dict[str, Dict[str, int | List]]:
         statistics = dict()
