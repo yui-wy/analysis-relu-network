@@ -338,10 +338,10 @@ class HyperplaneArrangements:
         # 在不同父区域下，同一个神经元可能会出现中间态与非中间态
         p_dir = os.path.join(self.root_dir, "hpa_statistics")
         os.makedirs(p_dir, exist_ok=True)
-        counts_str, scales_str = "", ""
-        counts_statistic_str, counts_scales_str = "", ""
+        counts_str, counts_statistic_str, counts_scales_str = "", "", ""
+        avg_str = ""
         # MAP: [depth, Dict[name, [List[int]]]]
-        statistic_dict: Dict[int, Dict[str, List[int]]] = dict()
+        statistic_dict: Dict[int, Dict[str, List[int] | int | Dict[int, List[int]]]] = dict()
 
         def csv_str(buff: str, num_list: List[int | float]):
             str_list = list(map(str, num_list))
@@ -358,15 +358,13 @@ class HyperplaneArrangements:
         for depth, statistic in statistics.items():
             neural_num: int = statistic.get(NEURAL_NUM)
             intersect_counts: List[int] = statistic.get("intersect_counts")
-            intersect_scales: List[float] = statistic.get("intersect_scales")
             counts_str = csv_str(counts_str, intersect_counts)
-            scales_str = csv_str(scales_str, intersect_scales)
             # 统计期望与概率
             depth_statistic: Dict[str, List[int | float]] = dict()
             depth_statistic[NEURAL_NUM] = neural_num
             counts_list = statistic_fun(neural_num, intersect_counts)
             counts_array = np.array(counts_list)
-            counts_sum:np.ndarray = np.sum(counts_array)
+            counts_sum: np.ndarray = np.sum(counts_array)
             # 统计每个区域中相交的超平面的数量
             counts_statistic_str += f"{depth}/{neural_num}/{counts_sum.item()},"
             counts_statistic_str = csv_str(counts_statistic_str, counts_list)
@@ -374,36 +372,43 @@ class HyperplaneArrangements:
             counts_array: np.ndarray = counts_array / counts_sum
             counts_scales_str += f"{depth}/{neural_num}/{counts_sum.item()},"
             counts_scales_str = csv_str(counts_scales_str, counts_array.tolist())
-
+            #
+            sub_hpa_region_counts: Dict[int, List[int]] = statistic.get("sub_hpa_region_counts")
+            avg_list = self._get_average(neural_num, sub_hpa_region_counts)
+            avg_str += f"{depth}/{neural_num}/{counts_sum.item()},"
+            avg_str = csv_str(avg_str, avg_list)
+            #
             depth_statistic[STATISTIC_COUNT] = counts_list
             statistic_dict[depth] = depth_statistic
 
         # csv
         save_file(counts_str, os.path.join(p_dir, "counts.csv"))
-        save_file(scales_str, os.path.join(p_dir, "scales.csv"))
         # plot, 考虑概率和期望模型
         self._draw_statistic(p_dir, statistic_dict, STATISTIC_COUNT, "statistic counts", "counts")
         # self._draw_statistic(p_dir, statistic_dict, STATISTIC_COUNT, "statistic scales")
         # statistic
         save_file(counts_statistic_str, os.path.join(p_dir, "counts_statistic.csv"))
         save_file(counts_scales_str, os.path.join(p_dir, "counts_scales.csv"))
+        save_file(avg_str, os.path.join(p_dir, "hpa_avg_regions.csv"))
 
     def _get_statistics(self) -> Dict[str, Dict[str, int | List]]:
         statistics = dict()
         for depth, hpas in self.hyperplane_arrangements.items():
             intersect_counts = []
-            intersect_scales = []
+            sub_hpa_region_counts: Dict[int, List[int]] = dict()
             neural_num = -1
             for hpa in hpas:
                 if neural_num == -1:
                     neural_num = len(hpa.c_funs)
-                intersects = 0 if hpa.intersect_funs is None else len(hpa.intersect_funs)
-                intersect_counts.append(intersects)
-                intersect_scales.append(intersects / neural_num)
+                n_intersects = hpa.n_intersect_funcs
+                intersect_counts.append(n_intersects)
+                n_regions_list: List[int] = sub_hpa_region_counts.get(n_intersects, list())
+                n_regions_list.append(hpa.n_regions)
+                sub_hpa_region_counts[n_intersects] = n_regions_list
             statistic = dict()
             statistic[NEURAL_NUM] = neural_num
             statistic["intersect_counts"] = intersect_counts
-            statistic["intersect_scales"] = intersect_scales
+            statistic["sub_hpa_region_counts"] = sub_hpa_region_counts
             statistics[depth] = statistic
         return statistics
 
@@ -440,6 +445,13 @@ class HyperplaneArrangements:
         plt.clf()
         plt.close()
 
+    def _get_average(self, neural_num: int, sub_hpa_region_counts: Dict[int, List[int]]) -> List[float]:
+        avg_list: List[float] = [0] * (neural_num + 1)
+        for n_intersects, n_region_list in sub_hpa_region_counts.items():
+            n_region_array = np.array(n_region_list)
+            avg_list[n_intersects] = np.average(n_region_array).item()
+        return avg_list
+
     def draw_hyperplane_arrangments(self):
         p_dir = os.path.join(self.root_dir, "hyperplane_arrangments")
         for depth, hpas in self.hyperplane_arrangements.items():
@@ -448,7 +460,7 @@ class HyperplaneArrangements:
                 pic_dir = os.path.join(save_dir, f"hpa_{idx}")
                 os.makedirs(pic_dir, exist_ok=True)
                 self._draw_hyperplane_arrangment(hpa, pic_dir, f"arrangement.jpg")
-                self._draw_weights_scatter(hpa, pic_dir, f"weights_scatter.jpg")
+                # self._draw_weights_scatter(hpa, pic_dir, f"weights_scatter.jpg")
 
     def _draw_weights_scatter(
         self,

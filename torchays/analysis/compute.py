@@ -336,6 +336,7 @@ class ReLUNets:
         intersect_funs, intersect_funs_points = self._compute_intersect(c_functions, p_functions, p_region, p_inner_point)
         counts, n_regions = 0, 0
         if intersect_funs is None:
+            n_regions = 1
             counts += self._layer_region_counts(p_inner_point, p_functions, p_region, depth, set_register)
         else:
             c_regions = self._get_regions(intersect_funs_points, intersect_funs)
