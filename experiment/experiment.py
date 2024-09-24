@@ -1,4 +1,3 @@
-from cProfile import label
 from copy import deepcopy
 import math
 import os
@@ -8,7 +7,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import polytope as pc
-from sympy import count_ops
 import torch
 from torch.utils import data
 
@@ -22,18 +20,12 @@ from torchays.graph import (
     plot_regions,
     plot_regions_3d,
 )
-from torchays.utils import get_logger
+from torchays.utils import get_logger, CSV
 
 EPSILON = 1e-16
 STATISTIC_COUNT = "statistic_count"
 STATISTIC_SCALE = "statistic_scale"
 NEURAL_NUM = "neural_num"
-
-
-def save_file(buff, file_path):
-    with open(file_path, 'w') as w:
-        w.write(buff)
-        w.close()
 
 
 def accuracy(x, classes):
@@ -335,18 +327,14 @@ class HyperplaneArrangements:
 
     def statistics_intersect(self):
         # 统计每一层与父区域相交的神经元数量。
-        # 在不同父区域下，同一个神经元可能会出现中间态与非中间态
         p_dir = os.path.join(self.root_dir, "hpa_statistics")
         os.makedirs(p_dir, exist_ok=True)
-        counts_str, counts_statistic_str, counts_scales_str = "", "", ""
-        avg_str = ""
+        counts_csv = CSV(os.path.join(p_dir, "counts.csv"))
+        counts_statistic_csv = CSV(os.path.join(p_dir, "counts_statistic.csv"))
+        counts_scales_csv = CSV(os.path.join(p_dir, "counts_scales.csv"))
+        avg_csv = CSV(os.path.join(p_dir, "hpa_avg_regions.csv"))
         # MAP: [depth, Dict[name, [List[int]]]]
         statistic_dict: Dict[int, Dict[str, List[int] | int | Dict[int, List[int]]]] = dict()
-
-        def csv_str(buff: str, num_list: List[int | float]):
-            str_list = list(map(str, num_list))
-            str_buff = ",".join(str_list)
-            return buff + str_buff + "\r\n"
 
         def statistic_fun(neural_num: int, num_list: List[int | float]):
             statistic_list = [0] * (neural_num + 1)
@@ -355,41 +343,46 @@ class HyperplaneArrangements:
             return statistic_list
 
         statistics = self._get_statistics()
+        max_neural_num = -1
         for depth, statistic in statistics.items():
             neural_num: int = statistic.get(NEURAL_NUM)
+            if max_neural_num < neural_num:
+                max_neural_num = neural_num
             intersect_counts: List[int] = statistic.get("intersect_counts")
-            counts_str = csv_str(counts_str, intersect_counts)
-            # 统计期望与概率
-            depth_statistic: Dict[str, List[int | float]] = dict()
-            depth_statistic[NEURAL_NUM] = neural_num
+
             counts_list = statistic_fun(neural_num, intersect_counts)
             counts_array = np.array(counts_list)
             counts_sum: np.ndarray = np.sum(counts_array)
-            # 统计每个区域中相交的超平面的数量
-            counts_statistic_str += f"{depth}/{neural_num}/{counts_sum.item()},"
-            counts_statistic_str = csv_str(counts_statistic_str, counts_list)
-            # 统计每个区域中相交超平面的数量占比
-            counts_array: np.ndarray = counts_array / counts_sum
-            counts_scales_str += f"{depth}/{neural_num}/{counts_sum.item()},"
-            counts_scales_str = csv_str(counts_scales_str, counts_array.tolist())
+            tag = f"{depth}/{neural_num}/{counts_sum.item()}"
             #
+            counts_csv.add_row(tag, intersect_counts)
+            # 统计每个区域中相交的超平面的数量
+            counts_statistic_csv.add_row(tag, counts_list)
+            # 统计每个区域中相交超平面的数量占比
+            counts_scales: np.ndarray = counts_array / counts_sum
+            counts_scales_csv.add_row(tag, counts_scales.tolist())
+            # n个超平面能分割区域的平均数量
             sub_hpa_region_counts: Dict[int, List[int]] = statistic.get("sub_hpa_region_counts")
             avg_list = self._get_average(neural_num, sub_hpa_region_counts)
-            avg_str += f"{depth}/{neural_num}/{counts_sum.item()},"
-            avg_str = csv_str(avg_str, avg_list)
-            #
+            avg_csv.add_row(tag, avg_list)
+            # save statistic
+            depth_statistic: Dict[str, List[int | float]] = dict()
+            depth_statistic[NEURAL_NUM] = neural_num
             depth_statistic[STATISTIC_COUNT] = counts_list
             statistic_dict[depth] = depth_statistic
 
-        # csv
-        save_file(counts_str, os.path.join(p_dir, "counts.csv"))
+        def save_csvs(*csvs: CSV):
+            header_tag = "tag/neurals"
+            header = [i for i in range(max_neural_num + 1)]
+            for csv in csvs:
+                csv.set_header(header_tag, header)
+                csv.save()
+
+        # save csv
+        counts_csv.save()
+        save_csvs(counts_statistic_csv, counts_scales_csv, avg_csv)
         # plot, 考虑概率和期望模型
-        self._draw_statistic(p_dir, statistic_dict, STATISTIC_COUNT, "statistic counts", "counts")
-        # self._draw_statistic(p_dir, statistic_dict, STATISTIC_COUNT, "statistic scales")
-        # statistic
-        save_file(counts_statistic_str, os.path.join(p_dir, "counts_statistic.csv"))
-        save_file(counts_scales_str, os.path.join(p_dir, "counts_scales.csv"))
-        save_file(avg_str, os.path.join(p_dir, "hpa_avg_regions.csv"))
+        self._draw_statistic(p_dir, statistic_dict, max_neural_num, STATISTIC_COUNT, "statistic counts", "counts")
 
     def _get_statistics(self) -> Dict[str, Dict[str, int | List]]:
         statistics = dict()
@@ -416,6 +409,7 @@ class HyperplaneArrangements:
         self,
         dir: str,
         statistic_dict: Dict[int, Dict[str, List[int]]],
+        max_neural_num: int,
         key: str,
         name: str = "",
         y_label: str = "",
@@ -427,12 +421,9 @@ class HyperplaneArrangements:
         ax = fig.subplots()
         ax.cla()
         ax.tick_params(labelsize=15)
-        max_neural_num = 0
         legend_list: List[str] = list()
         for depth, depth_statistic in statistic_dict.items():
             neural_num = depth_statistic.get(NEURAL_NUM)
-            if max_neural_num < neural_num:
-                max_neural_num = neural_num
             x_list = depth_statistic.get(key)
             ax.plot(np.arange(neural_num + 1), x_list, label=name, color=color(depth))
             legend_list.append(f"depth-{depth}/{neural_num}")
