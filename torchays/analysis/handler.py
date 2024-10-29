@@ -7,7 +7,7 @@ class BaseHandler:
         self,
         fun: torch.Tensor,
         region: torch.Tensor,
-        point: np.ndarray,
+        point: torch.Tensor,
     ):
         raise NotImplementedError()
 
@@ -28,7 +28,7 @@ class DefaultHandler(BaseHandler):
         self,
         fun: torch.Tensor,
         region: torch.Tensor,
-        point: np.ndarray,
+        point: torch.Tensor,
     ):
         return None
 

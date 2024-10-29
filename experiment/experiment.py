@@ -164,11 +164,11 @@ class TrainToy(_base):
 class DrawRegionImage:
     def __init__(
         self,
-        region_num,
-        funcs,
-        regions,
-        points,
-        save_dir,
+        region_num: int,
+        funcs: np.ndarray,
+        regions: np.ndarray,
+        points: np.ndarray,
+        save_dir: str,
         net: nn.Module,
         n_classes=2,
         bounds=(-1, 1),
@@ -560,11 +560,11 @@ class Handler(BaseHandler):
         self,
         fun: torch.Tensor,
         region: torch.Tensor,
-        point: np.ndarray,
+        point: torch.Tensor,
     ) -> None:
-        self.funs.append(fun.numpy())
-        self.regions.append(region.numpy())
-        self.points.append(point)
+        self.funs.append(fun.cpu().numpy())
+        self.regions.append(region.cpu().numpy())
+        self.points.append(point.cpu().numpy())
 
     def _init_inner_hyperplanes_handler(self):
         self.hyperplane_arrangements: Dict[int, List[HyperplaneArrangement]] = dict()

@@ -1,4 +1,6 @@
+from typing import Tuple
 import numpy as np
+from scipy import optimize
 
 # ================================================================
 # Minimize function.
@@ -93,3 +95,8 @@ def constraint(fun, jac, tpye: str = "ineq"):
         "fun": fun,
         "jac": jac,
     }
+
+
+def minimize(function, x0, constraints, jac, method="SLSQP", tol=1e-20, options={"maxiter": 100}) -> Tuple[float, np.ndarray]:
+    result = optimize.minimize(function, x0, method=method, constraints=constraints, jac=jac, tol=tol, options=options)
+    return result.fun, result.x
