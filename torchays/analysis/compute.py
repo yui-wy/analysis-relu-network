@@ -142,10 +142,12 @@ class ReLUNets:
 
     def __init__(
         self,
+        num_worker:int = 1,
         device=torch.device("cpu"),
         logger=None,
         is_log_time: bool = False,
     ):
+        self.num_worker = num_worker
         self.device = device
         self.one = torch.ones(1).double()
         self.logger = logger or get_logger("AnalysisReLUNetUtils-Console")
@@ -227,7 +229,7 @@ class ReLUNets:
         constraints.extend(self.constraints)
         # 投影方法前置
         p_points = find_projection(c_inner_point, funcs)
-        print("-----------=-=-=-----------------")
+        # print("-----------=-=-=-----------------")
         for i in range(constraint_funcs.shape[0]):
             if not vertify(p_points[i], funcs, region):
                 # 没有验证成功，使用优化方法
@@ -245,8 +247,8 @@ class ReLUNets:
                 filter_region[i] = region[i]
         c_bound_funcs = torch.stack(c_bound_funcs)
         c_bound_region = torch.tensor(c_bound_region, dtype=torch.int8)
-        print(c_bound_funcs.shape[0])
-        print("-----------=-=-=-----------------")
+        # print(c_bound_funcs.shape[0])
+        # print("-----------=-=-=-----------------")
         return c_bound_funcs, c_bound_region, filter_region, neighbor_regions
 
     def _optimize_child_region(
