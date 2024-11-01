@@ -160,7 +160,6 @@ class ReLUNets:
         """
         Get the list of the linear function before ReLU layer.
         """
-        self.net.to(self.device)
         x = x.float().to(self.device)
         x = x.reshape(*self.input_size).unsqueeze(dim=0)
         with torch.no_grad():
@@ -172,7 +171,6 @@ class ReLUNets:
             # (output.num, 1)
             bias_graph = bias_graph.reshape(-1, 1)
             # (output.num, input.num + 1)
-        self.net.cpu()
         return torch.cat([weight_graph, bias_graph], dim=1).cpu()
 
     @_log_time("find child region inner point", 2, True)
@@ -187,17 +185,17 @@ class ReLUNets:
 
         To minimize:
         * min_{x,r} (-r)
-        * s.t.  (AX+B-r||A|| >= 0)
+        * s.t.  (Ax+B-r||A|| >= 0)
+        *       r > 0
         """
-        # ||A||
         functions, init_point = functions.numpy(), init_point.numpy()
         r = np.random.uniform(0, 1.0)
         x = np.append(init_point, r)
-        norm_A = np.linalg.norm(functions[:, :-1], ord=2, axis=1)
+        norm = np.linalg.norm(functions[:, :-1], ord=2, axis=1)
         constraints = [
             constraint(
-                radius_constraint(functions[i], norm_A[i]),
-                jac_radius_constraint(functions[i], norm_A[i]),
+                radius_constraint(functions[i], norm[i]),
+                jac_radius_constraint(functions[i], norm[i]),
             )
             for i in range(functions.shape[0])
         ]
@@ -309,6 +307,8 @@ class ReLUNets:
         # 投影点前置
         p_points = find_projection(x, funcs)
         for i in range(funcs.size(0)):
+            if torch.isnan(p_points[i]).all():
+                continue
             if vertify(p_points[i], p_funcs, p_regions):
                 # 判断投影点
                 inner_points.append(p_points[i])
@@ -492,7 +492,7 @@ class ReLUNets:
         assert isinstance(net, Module), "the type of net must be \"BaseModule\"."
         assert depth >= 0, "countLayers must >= 0."
         # Initialize the settings
-        self.net = net.graph()
+        self.net = net.to(self.device).graph()
         self.last_depth = depth
         self.input_size = input_size
         self.handler = handler

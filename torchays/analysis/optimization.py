@@ -51,16 +51,16 @@ def jac_linear(function):
     return jac
 
 
-def radius_constraint(function, norm_A):
+def radius_constraint(function, norm):
     def fun(x):
-        return np.matmul(x[:-1], function[:-1]) + function[-1] - norm_A * x[-1]
+        return np.matmul(x[:-1], function[:-1]) + function[-1] - norm * x[-1]
 
     return fun
 
 
-def jac_radius_constraint(function, norm_A):
+def jac_radius_constraint(function, norm):
     def jac(x):
-        return np.append(function[:-1], -norm_A)
+        return np.append(function[:-1], -norm)
 
     return jac
 
@@ -103,7 +103,7 @@ def minimize(
     constraints,
     jac,
     method="SLSQP",
-    tol=1e-20,
+    tol=1e-16,
     options={
         "maxiter": 100,
         "ftol": 1e-16,
