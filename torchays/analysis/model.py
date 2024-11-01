@@ -9,5 +9,5 @@ class Model(Module):
     n_relu: int
     name: str
 
-    def forward_layer(x, depth: int) -> Tuple[Any, Dict[str, torch.Tensor]]:
+    def forward_layer(self, x, depth: int) -> Tuple[Any, Dict[str, torch.Tensor]]:
         raise NotImplementedError()

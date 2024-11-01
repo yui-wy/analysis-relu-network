@@ -13,7 +13,7 @@ GPU_ID = 0
 SEED = 5
 NAME = "Linear"
 DATASET = MOON
-N_LAYERS = [16, 16, 16]
+N_LAYERS = [32, 32, 32]
 # Dataset
 N_SAMPLES = 1000
 DATASET_BIAS = 0
@@ -27,7 +27,6 @@ SAVE_EPOCH = [100, 200, 500, 1000, 2000, 4000, 5000]
 BATCH_SIZE = 32
 LR = 1e-3
 BOUND = (-1, 1)
-
 # Experiment
 IS_EXPERIMENT = True
 # is training the network.
@@ -44,6 +43,9 @@ IS_STATISTIC_HPAS = True
 IS_ANALYSIS = True
 # draw the dataset distribution
 WITH_DATASET = True
+
+root_dir = os.path.abspath("./")
+save_dir = os.path.join(root_dir, "cache", f"{DATASET}-{N_SAMPLES}-{SEED}")
 
 
 def init_fun():
@@ -79,8 +81,6 @@ def dataset(save_dir: str, name: str = "dataset.pkl"):
 
 
 if __name__ == "__main__":
-    root_dir = os.path.abspath("./")
-    save_dir = os.path.join(root_dir, "cache", f"{DATASET}-{N_SAMPLES}-{SEED}")
     os.makedirs(save_dir, exist_ok=True)
     device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
     if IS_EXPERIMENT:
