@@ -30,9 +30,13 @@ BOUND = (-1, 1)
 # Experiment
 IS_EXPERIMENT = True
 # is training the network.
-IS_TRAIN = True
+IS_TRAIN = False
+# the number of the workers
+WORKERS = 1
 # is drawing the region picture. Only for 2d input.
 IS_DRAW = True
+# the depth of the NN to draw
+DRAW_DEPTH = -1
 # is drawing the 3d region picture.
 IS_DRAW_3D = False
 # is handlering the hyperplanes arrangement.
@@ -99,11 +103,13 @@ if __name__ == "__main__":
                 lr=LR,
             )
         exp.linear_region(
+            workers=WORKERS,
             bounds=BOUND,
             is_draw=IS_DRAW,
             is_draw_3d=IS_DRAW_3D,
             is_draw_hpas=IS_DRAW_HPAS,
             is_statistic_hpas=IS_STATISTIC_HPAS,
+            draw_depth=DRAW_DEPTH,
         )
         exp()
     if IS_ANALYSIS:

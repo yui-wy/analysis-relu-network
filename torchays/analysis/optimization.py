@@ -97,6 +97,17 @@ def constraint(fun, jac, tpye: str = "ineq"):
     }
 
 
-def minimize(function, x0, constraints, jac, method="SLSQP", tol=1e-20, options={"maxiter": 100}) -> Tuple[float, np.ndarray]:
+def minimize(
+    function,
+    x0,
+    constraints,
+    jac,
+    method="SLSQP",
+    tol=1e-20,
+    options={
+        "maxiter": 100,
+        "ftol": 1e-16,
+    },
+) -> Tuple[float, np.ndarray]:
     result = optimize.minimize(function, x0, method=method, constraints=constraints, jac=jac, tol=tol, options=options)
     return result.fun, result.x

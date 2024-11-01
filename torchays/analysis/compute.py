@@ -1,6 +1,7 @@
 import time
+import multiprocessing as mp
 from collections import deque
-from typing import Callable, Deque, List, Tuple, TypeAlias
+from typing import Callable, Deque, Iterable, List, Tuple, TypeAlias
 
 import numpy as np
 import torch
@@ -29,15 +30,8 @@ from .util import get_regions, find_projection, vertify
 
 
 class RegionSet:
-    def __init__(
-        self,
-        inner_point: torch.Tensor,
-        functions: torch.Tensor,
-        region: torch.Tensor,
-        depth: int = 0,
-    ) -> None:
+    def __init__(self) -> None:
         self._regions: Deque[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]] = deque()
-        self.register(inner_point, functions, region, depth)
 
     def __iter__(self):
         return self
@@ -48,14 +42,23 @@ class RegionSet:
         except:
             raise StopIteration
 
+    def __len__(self) -> int:
+        return len(self._regions)
+
     def register(
         self,
-        inner_point: torch.Tensor,
         functions: torch.Tensor,
         region: torch.Tensor,
+        inner_point: torch.Tensor,
         depth: int,
     ):
-        self._regions.append((inner_point, functions, region, depth))
+        self._regions.append((functions, region, inner_point, depth))
+
+    def registers(self, regions: Iterable[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]]):
+        self._regions.extend(regions)
+
+    def __str__(self):
+        return self._regions.__str__()
 
 
 class WapperRegion:
@@ -69,7 +72,7 @@ class WapperRegion:
         self.filter = torch.Tensor().type(torch.int8)
         self.regions: Deque[torch.Tensor] = deque()
         if regions is not None:
-            self.regist_regions(regions)
+            self.registers(regions)
 
     def __iter__(self):
         return self
@@ -77,7 +80,7 @@ class WapperRegion:
     def __next__(self) -> torch.Tensor:
         try:
             region = self.regions.popleft()
-            while self._check_region(region):
+            while self._check(region):
                 region = self.regions.popleft()
             return region
         except:
@@ -86,7 +89,7 @@ class WapperRegion:
     def _update_list(self):
         self.output: torch.Tensor = self.regions.popleft()
 
-    def _check_region(self, region: torch.Tensor):
+    def _check(self, region: torch.Tensor):
         try:
             a = ((self.filter.abs() * region) - self.filter).abs().sum(dim=1)
             return 0 in a
@@ -94,17 +97,17 @@ class WapperRegion:
             return False
 
     def update_filter(self, region: torch.Tensor):
-        if self._check_region(region):
+        if self._check(region):
             return
         self.filter = torch.cat([self.filter, region.unsqueeze(0)], dim=0)
 
-    def regist_region(self, region: torch.Tensor):
-        if not self._check_region(region):
+    def register(self, region: torch.Tensor):
+        if not self._check(region):
             self.regions.append(region)
 
-    def regist_regions(self, regions: List[torch.Tensor] | torch.Tensor):
+    def registers(self, regions: List[torch.Tensor] | torch.Tensor):
         for region in regions:
-            self.regist_region(region)
+            self.register(region)
 
 
 def _log_time(fun_name: str, indent: int = 0, is_log: bool = True):
@@ -142,12 +145,12 @@ class ReLUNets:
 
     def __init__(
         self,
-        num_worker:int = 1,
+        workers: int = 1,
         device=torch.device("cpu"),
         logger=None,
         is_log_time: bool = False,
     ):
-        self.num_worker = num_worker
+        self.workers = workers if workers > 0 else 1
         self.device = device
         self.one = torch.ones(1).double()
         self.logger = logger or get_logger("AnalysisReLUNetUtils-Console")
@@ -157,6 +160,7 @@ class ReLUNets:
         """
         Get the list of the linear function before ReLU layer.
         """
+        self.net.to(self.device)
         x = x.float().to(self.device)
         x = x.reshape(*self.input_size).unsqueeze(dim=0)
         with torch.no_grad():
@@ -168,6 +172,7 @@ class ReLUNets:
             # (output.num, 1)
             bias_graph = bias_graph.reshape(-1, 1)
             # (output.num, input.num + 1)
+        self.net.cpu()
         return torch.cat([weight_graph, bias_graph], dim=1).cpu()
 
     @_log_time("find child region inner point", 2, True)
@@ -201,7 +206,7 @@ class ReLUNets:
         inner_point, r = result[:-1], result[-1]
         result = np.matmul(functions[:, :-1], inner_point.T) + functions[:, -1]
         result = np.where(result >= -1e-16, 1, 0)
-        if (0 in result) or r < 1e-10:
+        if (0 in result) or r < 1e-16:
             return None
         return torch.from_numpy(inner_point).float()
 
@@ -264,7 +269,7 @@ class ReLUNets:
         """
         funcs, region = torch.cat([c_funcs, p_funcs], dim=0), torch.cat([c_region, p_region], dim=0)
         constraint_funcs = region.view(-1, 1) * funcs
-        # 1. checking whether the region exists, the inner point will be obtained if existed.
+        # 1. Check whether the region exists, the inner point will be obtained if existed.
         c_inner_point: torch.Tensor | None = self._find_region_inner_point(constraint_funcs, inner_point)
         if c_inner_point is None:
             return None, [], [], None, []
@@ -275,10 +280,10 @@ class ReLUNets:
     @_log_time("find intersect", 2)
     def _find_intersect(
         self,
-        funcs: torch.Tensor,
         p_funcs: torch.Tensor,
         p_regions: torch.Tensor,
         x: torch.Tensor,
+        funcs: torch.Tensor,
     ) -> Tuple[torch.Tensor | None, torch.Tensor | None]:
         """
         存在一个f(x)与f(x0)符号相反或者f(x)=0
@@ -320,77 +325,61 @@ class ReLUNets:
         inner_points = torch.stack(inner_points, dim=0)
         return intersect_funs, inner_points
 
-    @_log_time("get layer regions", 2)
-    def _get_layer_regions(
+    @_log_time("handler regions", 2)
+    def _handler_regions(
         self,
-        c_funcs: torch.Tensor,
         p_funcs: torch.Tensor,
         p_region: torch.Tensor,
         p_inner_point: torch.Tensor,
+        c_funcs: torch.Tensor,
         depth: int,
-        set_register: Callable[[torch.Tensor, torch.Tensor, torch.Tensor, int], None],
     ):
         """
         验证hyperplane arrangement的存在性(子平面, 是否在父区域上具有交集)
         """
-        intersect_funcs, intersect_funcs_points = self._find_intersect(c_funcs, p_funcs, p_region, p_inner_point)
+        next_regions = RegionSet()
         counts, n_regions = 0, 0
+        intersect_funcs, intersect_funcs_points = self._find_intersect(p_funcs, p_region, p_inner_point, c_funcs)
         if intersect_funcs is None:
             n_regions = 1
-            counts += self._layer_region_counts(p_funcs, p_region, p_inner_point, depth, set_register)
+            counts += self._nn_region_counts(p_funcs, p_region, p_inner_point, depth, next_regions.register)
         else:
             c_regions = get_regions(intersect_funcs_points, intersect_funcs)
-            # Regist some areas in WapperRegion for iterate.
+            # Register some regions in WapperRegion for iterate.
             layer_regions = WapperRegion(c_regions)
-            # TODO: Muti-Processes
             for c_region in layer_regions:
+                # Check and get the child region. Then, the neighbor regions will be found.
                 c_inner_point, c_bound_funcs, c_bound_region, filter_region, neighbor_regions = self._optimize_child_region(intersect_funcs, c_region, p_funcs, p_region, p_inner_point)
                 if c_inner_point is None:
                     continue
                 # Add the region to prevent counting again.
                 layer_regions.update_filter(filter_region)
-                # Regist new regions for iterate.
-                layer_regions.regist_regions(neighbor_regions)
+                # Register new regions for iterate.
+                layer_regions.registers(neighbor_regions)
+                # Count the number of the regions in the current parent region.
                 n_regions += 1
-                counts += self._layer_region_counts(c_bound_funcs, c_bound_region, c_inner_point, depth, set_register)
+                # Handle the child region.
+                counts += self._nn_region_counts(c_bound_funcs, c_bound_region, c_inner_point, depth, next_regions.register)
+        # Collect the information of the current parent region including region functions, child functions, intersect functions and number of the child regions.
         self.handler.inner_hyperplanes_handler(p_funcs, p_region, c_funcs, intersect_funcs, n_regions, depth)
-        return counts
+        return counts, next_regions
 
-    def _layer_region_counts(
+    def _nn_region_counts(
         self,
         funcs: torch.Tensor,
         region: torch.Tensor,
         inner_point: torch.Tensor,
         depth: int,
-        set_register: Callable[[np.ndarray, torch.Tensor, torch.Tensor, int], None],
+        register: Callable[[torch.Tensor, torch.Tensor, torch.Tensor, int], None],
     ) -> int:
         if depth == self.last_depth:
-            # last layer
+            # If current layer is the last layer, the region is the in count.
+            # Collect the information of the final region.
             self.handler.region_handler(funcs, region, inner_point)
             return 1
-        set_register(inner_point, funcs, region, depth + 1)
+        # If not the last layer, the region will be parent region in the next layer.
+        register(funcs, region, inner_point, depth + 1)
         return 0
-
-    @_log_time("Region counts")
-    def _get_counts(self, region_set: RegionSet) -> int:
-        counts: int = 0
-        current_depth: int = -1
-        for p_inner_point, p_funcs, p_region, depth in region_set:
-            if depth != current_depth:
-                current_depth = depth
-                self.logger.info(f"Depth: {current_depth}")
-            c_funcs = self._functions(p_inner_point, depth)
-            # get the region number of one layer.
-            self.logger.info(f"Start get layers. Depth: {depth}, ")
-            counts += self._get_layer_regions(
-                c_funcs,
-                p_funcs,
-                p_region,
-                p_inner_point,
-                depth,
-                region_set.register,
-            )
-        return counts
 
     def _scale_functions(self, functions: torch.Tensor) -> torch.Tensor:
         def _scale_function(function: torch.Tensor):
@@ -405,10 +394,89 @@ class ReLUNets:
         return functions
 
     def _functions(self, x: torch.Tensor, depth: int):
-        # get the list of the linear functions from DNN.
+        # Get the list of the linear functions from DNN.
         functions = self._find_functions(x, depth)
-        # scale the functions
+        # Scale the functions.
         return self._scale_functions(functions)
+
+    def _single_get_counts(self, region_set: RegionSet) -> int:
+        counts: int = 0
+        current_depth: int = -1
+        for p_funcs, p_region, p_inner_point, depth in region_set:
+            if depth != current_depth:
+                current_depth = depth
+                self.logger.info(f"Depth: {current_depth+1}")
+            c_funcs = self._functions(p_inner_point, depth)
+            self.logger.info(f"Start to get regions. Depth: {depth+1}, ")
+            # Get the number of the parent region.
+            count, next_regions = self._handler_regions(p_funcs, p_region, p_inner_point, c_funcs, depth)
+            region_set.registers(next_regions)
+            counts += count
+        return counts
+
+    def _work(
+        self,
+        q: mp.SimpleQueue,
+        p_funcs: torch.Tensor,
+        p_region: torch.Tensor,
+        p_inner_point: torch.Tensor,
+        c_funcs: torch.Tensor,
+        depth: int,
+    ):
+        self.logger.info(f"Start to get regions. Depth: {depth+1}. ")
+        # Get the number of the parent region.
+        print(f"Start to get regions. Depth: {depth+1}. ")
+        count, next_regions = self._handler_regions(p_funcs, p_region, p_inner_point, c_funcs, depth)
+        q.put((count, next_regions))
+        print(f"End processing")
+
+    def _multiprocess_get_counts(self, region_set: RegionSet) -> int:
+        counts: int = 0
+        current_depth: int = -1
+        q = mp.Manager().Queue(self.workers)
+        jobs: List[mp.Process] = list()
+        for p_funcs, p_region, p_inner_point, depth in region_set:
+            if depth != current_depth:
+                current_depth = depth
+                self.logger.info(f"Depth: {current_depth+1}")
+            c_funcs = self._functions(p_inner_point, depth)
+            p = mp.Process(target=self._work, args=(q, p_funcs, p_region, p_inner_point, c_funcs, depth))
+            jobs.append(p)
+            p.start()
+            print(f"-----process start! {p.pid}------")
+            if len(jobs) >= self.workers or len(region_set) == 0:
+                # 当jobs满的时候或者没有后续的时候, 需要等待jobs结束
+                print("wait process end.")
+                while True:
+                    idx: List[int] = list()
+                    for i in range(len(jobs)):
+                        job = jobs[i]
+                        if job.is_alive():
+                            continue
+                        # 若job结束
+                        job.close()
+                        idx.append(i)
+                        count, next_regions = q.get()
+                        counts += count
+                        region_set.registers(next_regions)
+                    if len(idx) == 0:
+                        continue
+                    for i in idx:
+                        jobs.pop(i)
+                    if len(region_set) > 0:
+                        # 若jobs空出来,并且继续循环, 则break
+                        break
+                    if len(jobs) == 0:
+                        # 无循环, 等待全部结束break
+                        break
+                print(f"process num {len(jobs)}")
+        return counts
+
+    @_log_time("Region counts")
+    def _get_counts(self, region_set: RegionSet) -> int:
+        # if self.workers > 1:
+        #     return self._multiprocess_get_counts(region_set)
+        return self._single_get_counts(region_set)
 
     def get_region_counts(
         self,
@@ -423,18 +491,20 @@ class ReLUNets:
         """
         assert isinstance(net, Module), "the type of net must be \"BaseModule\"."
         assert depth >= 0, "countLayers must >= 0."
-        # initialize the settings
-        self.logger.info("Start Get region number.")
+        # Initialize the settings
+        self.net = net.graph()
         self.last_depth = depth
-        self.net = net.to(self.device).graph()
         self.input_size = input_size
         self.handler = handler
         self._init_constraints()
-        # initialize the parameters
+        # Initialize the parameters
         dim = torch.Size(input_size).numel()
         p_funcs, p_region, p_inner_point = _generate_bound_regions(bounds, dim)
-        # start
-        region_set = RegionSet(p_inner_point, p_funcs, p_region)
+        # Initialize the region set.
+        region_set = RegionSet()
+        region_set.register(p_funcs, p_region, p_inner_point, 0)
+        # Start to get the NN regions.
+        self.logger.info("Start Get region number.")
         counts = self._get_counts(region_set)
         self.logger.info(f"Region counts: {counts}.")
         return counts

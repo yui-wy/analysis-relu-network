@@ -593,12 +593,14 @@ class LinearRegion(_base):
         net: Callable[[int], Model],
         dataset: Callable[..., Tuple[Dataset, int]],
         *,
+        workers: int = 1,
         save_epoch: List[int] = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100],
         bounds: Tuple[float] = (-1, 1),
         is_draw: bool = True,
         is_draw_3d: bool = False,
         is_draw_hpas: bool = False,
         is_statistic_hpas: bool = True,
+        draw_depth: int = -1,
         device: torch.device = torch.device('cpu'),
     ) -> None:
         super().__init__(
@@ -614,11 +616,14 @@ class LinearRegion(_base):
         self.is_draw_hpas = is_draw_hpas
         self.is_statistic_hpas = is_statistic_hpas
         self.is_hpas = is_draw_hpas or is_statistic_hpas
+        self.draw_depth = draw_depth
+        self.workers = workers
 
     def get_region(self):
         net, dataset, n_classes = self._init_model()
+        draw_depth = self.draw_depth if self.draw_depth >= 0 else net.n_relu
         val_dataloader = data.DataLoader(dataset, shuffle=True, pin_memory=True)
-        au = ReLUNets(device=self.device)
+        au = ReLUNets(device=self.device, workers=self.workers)
         model_list = os.listdir(self.model_dir)
         with torch.no_grad():
             for model_name in model_list:
@@ -638,7 +643,7 @@ class LinearRegion(_base):
                     net,
                     bounds=self.bounds,
                     input_size=dataset.input_size,
-                    depth=net.n_relu,
+                    depth=draw_depth,
                     handler=handler,
                 )
                 print(f"Region counts: {region_num}")
@@ -721,22 +726,26 @@ class Experiment(_base):
 
     def linear_region(
         self,
+        workers: int = 1,
         is_draw: bool = True,
         is_draw_3d: bool = False,
         is_draw_hpas: bool = False,
         is_statistic_hpas: bool = True,
         bounds: Tuple[float] = (-1, 1),
+        draw_depth: int = -1,
     ):
         linear_region = LinearRegion(
             save_dir=self.save_dir,
             net=self.net,
             dataset=self.dataset,
             save_epoch=self.save_epoch,
+            workers= workers,
             is_draw=is_draw,
             is_draw_3d=is_draw_3d,
             is_draw_hpas=is_draw_hpas,
             is_statistic_hpas=is_statistic_hpas,
             bounds=bounds,
+            draw_depth=draw_depth,
             device=self.device,
         )
         self.append(linear_region.get_region)
