@@ -1,5 +1,5 @@
 from dataset.cifar import CIFAR10
-from dataset.mnist import MNIST
+from dataset.mnist import MNIST, MNIST_TYPE
 from dataset.toy import (
     GAUSSIAN_QUANTILES,
     MOON,
@@ -24,4 +24,5 @@ __all__ = [
     "GAUSSIAN_QUANTILES",
     "RANDOM",
     "Dataset",
+    "MNIST_TYPE",
 ]

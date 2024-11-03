@@ -727,10 +727,10 @@ class Experiment(_base):
     def linear_region(
         self,
         workers: int = 1,
-        is_draw: bool = True,
+        is_draw: bool = False,
         is_draw_3d: bool = False,
         is_draw_hpas: bool = False,
-        is_statistic_hpas: bool = True,
+        is_statistic_hpas: bool = False,
         bounds: Tuple[float] = (-1, 1),
         draw_depth: int = -1,
     ):
