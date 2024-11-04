@@ -18,6 +18,7 @@ class MNIST(mnist.MNIST):
         super().__init__(root, train, transform, target_transform, download)
         if self.transform is None:
             self.transform = _transform
+        self.input_size = (1, 28, 28)
 
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
         """
