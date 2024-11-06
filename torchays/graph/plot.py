@@ -35,6 +35,7 @@ def plot_regions(
     alpha=1.0,
     edgecolor="w",
     linewidth=0.01,
+    linestyle="-",
     xlim=(-1, 1),
     ylim=(-1, 1),
 ):
@@ -47,6 +48,7 @@ def plot_regions(
             alpha=alpha,
             edgecolor=edgecolor,
             linewidth=linewidth,
+            linestyle=linestyle,
         )
     xlim and ax.set_xlim(*xlim)
     ylim and ax.set_ylim(*ylim)
@@ -61,6 +63,7 @@ def plot_region(
     alpha=1.0,
     edgecolor="w",
     linewidth=0.01,
+    linestyle="-",
 ):
     functions = -region.reshape(-1, 1) * functions
     A, b = functions[:, :-1], -functions[:, -1]
@@ -71,6 +74,7 @@ def plot_region(
         alpha=alpha,
         edgecolor=edgecolor,
         linewidth=linewidth,
+        linestyle=linestyle,
     )
     return ax
 
@@ -100,6 +104,8 @@ def plot_regions_3d(
         A, b = functions[:, :-1], -functions[:, -1]
         poly = polytope.Polytope(A, b)
         verts = _sort_xy(poly)
+        if verts is None:
+            continue
         region_idxs: List[int] = list()
         for i in range(verts.shape[0]):
             vert = verts[i]
@@ -142,6 +148,8 @@ def _vert(xy: np.ndarray, z: np.ndarray):
 
 def _sort_xy(poly: polytope.Polytope) -> np.ndarray:
     verts = polytope.extreme(poly)
+    if verts is None:
+        return None
     _, xc = polytope.cheby_ball(poly)
     x = verts[:, 1] - xc[1]
     y = verts[:, 0] - xc[0]

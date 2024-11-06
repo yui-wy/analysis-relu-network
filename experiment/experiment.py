@@ -214,7 +214,7 @@ class DrawRegionImage:
         return z.cpu().numpy(), range(self.n_classes)
 
     def draw_region_img_3d(self, fileName="region_img_3d.png"):
-        fig = plt.figure(0)
+        fig = plt.figure(0, figsize=(8, 7), dpi=600)
         ax: plt.Axes = fig.add_subplot(projection="3d")
         ax.cla()
         ax.tick_params(labelsize=15)
@@ -223,10 +223,10 @@ class DrawRegionImage:
             self.regions,
             z_fun=self._z_fun,
             ax=ax,
-            alpha=0.9,
+            alpha=0.8,
             color=color,
             edgecolor="grey",
-            linewidth=0.1,
+            linewidth=0.2,
             xlim=self.bounds,
             ylim=self.bounds,
         )
@@ -649,12 +649,14 @@ class LinearRegion(_base):
                 print(f"Region counts: {region_num}")
                 if self.is_draw:
                     # draw fig
+                    draw_dir = os.path.join(save_dir, f"draw-region-{draw_depth}")
+                    os.makedirs(draw_dir, exist_ok=True)
                     drawReginImage = DrawRegionImage(
                         region_num,
                         handler.funs,
                         handler.regions,
                         handler.points,
-                        save_dir,
+                        draw_dir,
                         net,
                         n_classes,
                         bounds=self.bounds,
