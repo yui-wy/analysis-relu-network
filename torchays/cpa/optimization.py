@@ -40,7 +40,7 @@ def cheby_ball(funcs: np.ndarray) -> Tuple[np.ndarray, np.ndarray, bool]:
     sol = lineprog(c, a_ub, b_ub)
     if sol.success:
         x, r = sol.x[:-1], sol.x[-1]
-        if r > 0:
+        if r > 0 and x is not None:
             return x, r, sol.success
     return None, None, sol.success
 
@@ -73,6 +73,8 @@ def lineprog_intersect(
         b_eq,
         bounds=bounds,
     )
+    if not sol.success or sol.fun is None:
+        return False
     if sol.fun <= 0 and sol.slack.all() >= 0:
         return True
     return False
