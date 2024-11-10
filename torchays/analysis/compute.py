@@ -1,3 +1,4 @@
+from math import floor
 import time
 import multiprocessing as mp
 from collections import deque
@@ -54,11 +55,16 @@ class WapperRegion:
     * -1 : f(x) <= 0
     """
 
-    def __init__(self, regions: List[torch.Tensor] = None):
-        self.filter = torch.Tensor().type(torch.int8)
+    # The maximum capacity of a tensor.
+    # If this value is reached, the calculation speed will slow down.
+    _upper = 32767
+
+    def __init__(self, region: torch.Tensor):
+        self.filters: Deque[torch.Tensor] = deque()
+        self.filters.appendleft(torch.Tensor().type(torch.int8))
         self.regions: Deque[torch.Tensor] = deque()
-        if regions is not None:
-            self.registers(regions)
+        self._up_size = floor(self._upper / region.size(0))
+        self.register(region)
 
     def __iter__(self):
         return self
@@ -77,21 +83,32 @@ class WapperRegion:
 
     def _check(self, region: torch.Tensor):
         try:
-            a = ((self.filter.abs() * region) - self.filter).abs().sum(dim=1)
-            return 0 in a
+            including = False
+            start = time.time()
+            n = 0
+            for filter in self.filters:
+                res = ((filter.abs() * region) - filter).abs().sum(dim=1)
+                n += 1
+                if 0 in res:
+                    including = True
+                    break
+            t = time.time() - start
+            return including
         except:
             return False
 
     def update_filter(self, region: torch.Tensor):
         if self._check(region):
             return
-        self.filter = torch.cat([self.filter, region.unsqueeze(0)], dim=0)
+        if self.filters[0].size(0) == self._up_size:
+            self.filters.appendleft(torch.Tensor().type(torch.int8))
+        self.filters[0] = torch.cat([self.filters[0], region.unsqueeze(0)], dim=0)
 
     def register(self, region: torch.Tensor):
         if not self._check(region):
             self.regions.append(region)
 
-    def registers(self, regions: List[torch.Tensor] | torch.Tensor):
+    def registers(self, regions: List[torch.Tensor]):
         for region in regions:
             self.register(region)
 
@@ -280,7 +297,7 @@ class ReLUNets:
         else:
             c_regions = get_regions(p_inner_point.reshape(1, -1), intersect_funcs)
             # Register some regions in WapperRegion for iterate.
-            layer_regions = WapperRegion(c_regions)
+            layer_regions = WapperRegion(c_regions[0])
             for c_region in layer_regions:
                 # Check and get the child region. Then, the neighbor regions will be found.
                 c_inner_point, c_bound_funcs, c_bound_region, filter_region, neighbor_regions = self._optimize_child_region(intersect_funcs, c_region, p_funcs, p_region, p_inner_point)
