@@ -13,39 +13,42 @@ from dataset import (
 )
 from experiment import Analysis, Experiment
 from torchays import nn
-from torchays.models import LeNet, TestTNetLinear
+from torchays.models import LeNet, TestTNetLinear, TestResNet
 
-GPU_ID = 0
+GPU_ID = 5
 SEED = 5
 NAME = "Linear"
-TYPE = MNIST_TYPE
-
+# ===========================================
+TYPE = RANDOM
+# ===========================================
 # Test-Net
 N_LAYERS = [32, 32, 32]
-
+# ===========================================
 # Dataset
-N_SAMPLES = 1000
+N_SAMPLES = 10000
 DATASET_BIAS = 0
 # only GAUSSIAN_QUANTILES
 N_CLASSES = 2
 # only RANDOM
-IN_FEATURES = 2
+IN_FEATURES = 4
 # is download for mnist
 DOWNLOAD = False
-
+# ===========================================
 # Training
-MAX_EPOCH = 1000
-SAVE_EPOCH = [100, 200, 500, 1000]
+MAX_EPOCH = 10000
+SAVE_EPOCH = [10000]
 BATCH_SIZE = 64
 LR = 1e-3
 # is training the network.
 IS_TRAIN = True
-
+# ===========================================
 # Experiment
 IS_EXPERIMENT = True
-BOUND = (0, 1)
+BOUND = (-1, 1)
 # the number of the workers
 WORKERS = 1
+# ===========================================
+# Drawing
 # is drawing the region picture. Only for 2d input.
 IS_DRAW = False
 # the depth of the NN to draw
@@ -54,17 +57,17 @@ DRAW_DEPTH = -1
 IS_DRAW_3D = False
 # is handlering the hyperplanes arrangement.
 IS_DRAW_HPAS = False
-IS_STATISTIC_HPAS = True
-
+IS_STATISTIC_HPAS = False
+# ===========================================
 # Analysis
-IS_ANALYSIS = False
+IS_ANALYSIS = True
 # draw the dataset distribution
 WITH_DATASET = True
-
+# ===========================================
 # path
 root_dir = os.path.abspath("./")
 cache_dir = os.path.join(root_dir, "cache")
-save_dir = os.path.join(cache_dir, f"{TYPE}-{N_SAMPLES}-{SEED}")
+save_dir = os.path.join(cache_dir, f"{TYPE}-{N_SAMPLES}-{IN_FEATURES}-{SEED}")
 
 
 def init_fun():
@@ -73,7 +76,7 @@ def init_fun():
     np.random.seed(SEED)
 
 
-def net(type: str = "toy"):
+def net(type: str = MOON):
 
     def make_net(n_classes: int):
         if type == MNIST_TYPE:
@@ -83,7 +86,7 @@ def net(type: str = "toy"):
             layers=N_LAYERS,
             name=NAME,
             n_classes=n_classes,
-            norm_layer=nn.BatchNorm1d,
+            norm_layer=nn.BatchNormNone,
         )
 
     return make_net
@@ -91,7 +94,7 @@ def net(type: str = "toy"):
 
 def dataset(
     save_dir: str,
-    type: str = "toy",
+    type: str = MOON,
     name: str = "dataset.pkl",
 ):
     def make_dataset():

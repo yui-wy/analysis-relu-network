@@ -1,9 +1,9 @@
-from .compute import ReLUNets
+from .cpa import CPA
 from .handler import BaseHandler
 from .model import Model
 
 __all__ = [
-    "ReLUNets",
+    "CPA",
     "BaseHandler",
     "Model",
 ]

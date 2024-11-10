@@ -12,7 +12,7 @@ from torch.utils import data
 
 from dataset import Dataset
 from torchays import nn
-from torchays.analysis import BaseHandler, Model, ReLUNets
+from torchays.cpa import BaseHandler, Model, CPA
 from torchays.graph import (
     COLOR,
     color,
@@ -85,7 +85,7 @@ class _base:
         return val_accuracy_sum
 
 
-class TrainToy(_base):
+class Train(_base):
     def __init__(
         self,
         save_dir: str,
@@ -201,9 +201,14 @@ class DrawRegionImage:
             self.funcs,
             self.regions,
             ax=ax,
+            # color=lambda _: "w",
+            # edgecolor="gray",
+            # linewidth=0.5,
+            # linestyle="-",
             xlim=self.bounds,
             ylim=self.bounds,
         )
+        # ax.tick_params(labelcolor="w")
         plt.savefig(os.path.join(self.save_dir, fileName))
         plt.clf()
         plt.close()
@@ -230,6 +235,7 @@ class DrawRegionImage:
             xlim=self.bounds,
             ylim=self.bounds,
         )
+        # ax.tick_params(labelcolor="w")
         plt.savefig(os.path.join(self.save_dir, fileName))
         plt.clf()
         plt.close()
@@ -257,6 +263,7 @@ class DrawRegionImage:
         ax.set_ylim(*self.bounds)
         if color_bar:
             fig.colorbar(img)
+        ax.tick_params(labelcolor="w")
         plt.savefig(os.path.join(self.save_dir, fileName))
         plt.clf()
         plt.close()
@@ -623,7 +630,7 @@ class LinearRegion(_base):
         net, dataset, n_classes = self._init_model()
         draw_depth = self.draw_depth if self.draw_depth >= 0 else net.n_relu
         val_dataloader = data.DataLoader(dataset, shuffle=True, pin_memory=True)
-        au = ReLUNets(device=self.device, workers=self.workers)
+        cpa = CPA(device=self.device, workers=self.workers)
         model_list = os.listdir(self.model_dir)
         with torch.no_grad():
             for model_name in model_list:
@@ -633,18 +640,17 @@ class LinearRegion(_base):
                 print(f"Solve fileName: {model_name} ....")
                 save_dir = os.path.join(self.experiment_dir, os.path.splitext(model_name)[0])
                 os.makedirs(save_dir, exist_ok=True)
-                au.logger = get_logger(f"region-{os.path.splitext(model_name)[0]}", os.path.join(save_dir, "region.log"))
-                model_path = os.path.join(self.model_dir, model_name)
-                net.load_state_dict(torch.load(model_path))
+                net.load_state_dict(torch.load(os.path.join(self.model_dir, model_name), weights_only=False))
                 acc = self.val_net(net, val_dataloader).cpu().numpy()
                 print(f"Accuracy: {acc:.4f}")
                 handler = Handler()
-                region_num = au.get_region_counts(
+                region_num = cpa.start(
                     net,
                     bounds=self.bounds,
                     input_size=dataset.input_size,
                     depth=draw_depth,
                     handler=handler,
+                    logger=get_logger(f"region-{os.path.splitext(model_name)[0]}", os.path.join(save_dir, "region.log")),
                 )
                 print(f"Region counts: {region_num}")
                 if self.is_draw:
@@ -712,7 +718,7 @@ class Experiment(_base):
         lr: float = 0.001,
         train_handler: Callable[[nn.Module, int, int, int, torch.Tensor, torch.Tensor, str], None] = None,
     ):
-        toy_train = TrainToy(
+        _train = Train(
             save_dir=self.save_dir,
             net=self.net,
             dataset=self.dataset,
@@ -723,7 +729,7 @@ class Experiment(_base):
             train_handler=train_handler,
             device=self.device,
         )
-        self.append(toy_train.train)
+        self.append(_train.train)
         return self
 
     def linear_region(
@@ -741,7 +747,7 @@ class Experiment(_base):
             net=self.net,
             dataset=self.dataset,
             save_epoch=self.save_epoch,
-            workers= workers,
+            workers=workers,
             is_draw=is_draw,
             is_draw_3d=is_draw_3d,
             is_draw_hpas=is_draw_hpas,

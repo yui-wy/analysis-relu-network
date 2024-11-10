@@ -75,7 +75,7 @@ class Analysis:
                 net_reigions_path = os.path.join(experiment_dir, epoch_fold, 'net_regions.pkl')
                 if not os.path.isfile(net_reigions_path):
                     continue
-                net_reigions = torch.load(net_reigions_path)
+                net_reigions = torch.load(net_reigions_path, weights_only=False)
                 tag_dict[epoch] = net_reigions
             experiment_dict[tag] = tag_dict
         # save dir
@@ -96,7 +96,7 @@ class Analysis:
 
     def draw_dataset(self):
         dataset_path = os.path.join(self.root_dir, 'dataset.pkl')
-        dataset = torch.load(dataset_path)
+        dataset = torch.load(dataset_path, weights_only=False)
         save_path = os.path.join(self.root_dir, "distribution.png")
         x, y, n_classes = dataset['data'], dataset['classes'], dataset['n_classes']
         with default(save_path, 'x1', 'x2', isLegend=False, isGrid=False) as ax:
@@ -122,7 +122,7 @@ class Analysis:
             if not os.path.isfile(bn_path):
                 continue
             print(f"bn-{tag}")
-            bn_data: Dict[str, Dict[str, Dict[str, torch.Tensor]]] = torch.load(bn_path)
+            bn_data: Dict[str, Dict[str, Dict[str, torch.Tensor]]] = torch.load(bn_path, weights_only=False)
             self._analysis_bn(bn_data, root_dir)
 
     def _analysis_bn(self, bn_data: Dict[str, Dict[str, Dict[str, torch.Tensor]]], root_dir: str):

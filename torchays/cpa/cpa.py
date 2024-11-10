@@ -1,3 +1,4 @@
+from logging import Logger
 from math import floor
 import time
 import multiprocessing as mp
@@ -50,7 +51,7 @@ class RegionSet:
 
 class WapperRegion:
     """
-    Get the region(sign) of the function list.
+    Get the region of the function list.
     *  1 : f(x) > 0
     * -1 : f(x) <= 0
     """
@@ -82,17 +83,14 @@ class WapperRegion:
         self.output: torch.Tensor = self.regions.popleft()
 
     def _check(self, region: torch.Tensor):
+        """Check if the region has been used."""
         try:
             including = False
-            start = time.time()
-            n = 0
             for filter in self.filters:
                 res = ((filter.abs() * region) - filter).abs().sum(dim=1)
-                n += 1
                 if 0 in res:
                     including = True
                     break
-            t = time.time() - start
             return including
         except:
             return False
@@ -131,9 +129,9 @@ def _log_time(fun_name: str, indent: int = 0, is_log: bool = True):
     return wapper
 
 
-class ReLUNets:
+class CPA:
     """
-    ReLUNets needs to ensure that the net has the function:
+    CPA needs to ensure that the net has the function:
         >>> def forward_layer(*args, depth=depth):
         >>>     ''' layer is a "int" before every ReLU module. "Layer" can get the layer weight and bias graph.'''
         >>>     if depth == 1:
@@ -149,8 +147,8 @@ class ReLUNets:
     def __init__(
         self,
         workers: int = 1,
-        device=torch.device("cpu"),
-        logger=None,
+        device: torch.device = torch.device("cpu"),
+        logger: Logger = None,
         is_log_time: bool = False,
     ):
         self.workers = workers if workers > 0 else 1
@@ -205,7 +203,7 @@ class ReLUNets:
         c_inner_point: torch.Tensor,
     ):
         """Get the bound hyperplanes which can filter the same regions, and find the neighbor regions."""
-        c_bound_funcs, c_bound_region, neighbor_regions = [], [], []
+        c_edge_funcs, c_edge_region, neighbor_regions = [], [], []
         filter_region = torch.zeros_like(c_region).type(torch.int8)
 
         optim_funcs, optim_x = constraint_funcs.numpy(), c_inner_point.double().numpy()
@@ -217,19 +215,19 @@ class ReLUNets:
                 success = lineprog_intersect(optim_funcs[i], pn_funcs, optim_x, self.o_bounds)
                 if not success:
                     continue
-            c_bound_funcs.append(funcs[i])
-            c_bound_region.append(region[i])
+            c_edge_funcs.append(funcs[i])
+            c_edge_region.append(region[i])
             # Find the neighbor regions.
             if i < c_region.shape[0]:
                 neighbor_region = c_region.clone()
                 neighbor_region[i] = -region[i]
                 neighbor_regions.append(neighbor_region)
                 filter_region[i] = region[i]
-        c_bound_funcs = torch.stack(c_bound_funcs)
-        c_bound_region = torch.tensor(c_bound_region, dtype=torch.int8)
+        c_edge_funcs = torch.stack(c_edge_funcs)
+        c_edge_region = torch.tensor(c_edge_region, dtype=torch.int8)
         # print("neighbor", len(neighbor_regions))
         # print("------------------")
-        return c_bound_funcs, c_bound_region, filter_region, neighbor_regions
+        return c_edge_funcs, c_edge_region, filter_region, neighbor_regions
 
     def _optimize_child_region(
         self,
@@ -240,7 +238,8 @@ class ReLUNets:
         inner_point: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, list]:
         """
-        1. 获取区域是否存在; 2. 区域存在, 获取其中一个点; 3. 获取区域的相邻区域;
+        1. Check if the region is existed.
+        2. Get the neighbor regions and the functions of the region edges.;
         """
         funcs, region = torch.cat([c_funcs, p_funcs], dim=0), torch.cat([c_region, p_region], dim=0)
         # ax+b >= 0
@@ -286,7 +285,7 @@ class ReLUNets:
         depth: int,
     ):
         """
-        验证hyperplane arrangement的存在性(子平面, 是否在父区域上具有交集)
+        Find the child regions.
         """
         next_regions = RegionSet()
         counts, n_regions = 0, 0
@@ -300,7 +299,7 @@ class ReLUNets:
             layer_regions = WapperRegion(c_regions[0])
             for c_region in layer_regions:
                 # Check and get the child region. Then, the neighbor regions will be found.
-                c_inner_point, c_bound_funcs, c_bound_region, filter_region, neighbor_regions = self._optimize_child_region(intersect_funcs, c_region, p_funcs, p_region, p_inner_point)
+                c_inner_point, c_edge_funcs, c_edge_region, filter_region, neighbor_regions = self._optimize_child_region(intersect_funcs, c_region, p_funcs, p_region, p_inner_point)
                 if c_inner_point is None:
                     continue
                 # Add the region to prevent counting again.
@@ -310,7 +309,7 @@ class ReLUNets:
                 # Count the number of the regions in the current parent region.
                 n_regions += 1
                 # Handle the child region.
-                counts += self._nn_region_counts(c_bound_funcs, c_bound_region, c_inner_point, depth, next_regions.register)
+                counts += self._nn_region_counts(c_edge_funcs, c_edge_region, c_inner_point, depth, next_regions.register)
         # Collect the information of the current parent region including region functions, child functions, intersect functions and number of the child regions.
         self.handler.inner_hyperplanes_handler(p_funcs, p_region, c_funcs, intersect_funcs, n_regions, depth)
         return counts, next_regions
@@ -382,6 +381,7 @@ class ReLUNets:
         print(f"End processing")
 
     def _multiprocess_get_counts(self, region_set: RegionSet) -> int:
+        """Useless"""
         counts: int = 0
         current_depth: int = -1
         q = mp.Manager().Queue(self.workers)
@@ -396,7 +396,6 @@ class ReLUNets:
             p.start()
             print(f"-----process start! {p.pid}------")
             if len(jobs) >= self.workers or len(region_set) == 0:
-                # 当jobs满的时候或者没有后续的时候, 需要等待jobs结束
                 print("wait process end.")
                 while True:
                     idx: List[int] = list()
@@ -415,10 +414,8 @@ class ReLUNets:
                     for i in idx:
                         jobs.pop(i)
                     if len(region_set) > 0:
-                        # 若jobs空出来,并且继续循环, 则break
                         break
                     if len(jobs) == 0:
-                        # 无循环, 等待全部结束break
                         break
                 print(f"process num {len(jobs)}")
         return counts
@@ -429,17 +426,15 @@ class ReLUNets:
         #     return self._multiprocess_get_counts(region_set)
         return self._single_get_counts(region_set)
 
-    def get_region_counts(
+    def start(
         self,
         net: Model,
         bounds: float | int | Tuple[float, float] | Tuple[Tuple[float, float]] = 1.0,
         depth: int = -1,
         input_size: tuple = (2,),
         handler: BaseHandler = DefaultHandler(),
+        logger: Logger = None,
     ):
-        """
-        目前只支持方形的输入空间画图，需要修改。
-        """
         assert isinstance(net, Module), "the type of net must be \"BaseModule\"."
         assert depth >= 0, "countLayers must >= 0."
         # Initialize the settings
@@ -447,6 +442,8 @@ class ReLUNets:
         self.last_depth = depth
         self.input_size = input_size
         self.handler = handler
+        if logger is not None:
+            self.logger = logger
         # Initialize the parameters
         dim = torch.Size(input_size).numel()
         p_funcs, p_region, p_inner_point, self.o_bounds = _generate_bound_regions(bounds, dim)

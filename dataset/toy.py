@@ -92,7 +92,7 @@ def random(
 def from_path(data_path: str) -> Tuple[DataFunc, int]:
     if not os.path.isfile(data_path):
         raise FileNotFoundError(f"cannot find the dataset file [{data_path}]")
-    data_dict: Dict = torch.load(data_path)
+    data_dict: Dict = torch.load(data_path, weights_only=False)
     data: np.ndarray = data_dict.get("data")
     classes: np.ndarray = data_dict.get("classes")
     n_classes: int = data_dict.get("n_classes")
