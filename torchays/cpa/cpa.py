@@ -189,7 +189,7 @@ class CPA:
         """
         funcs = functions.numpy()
         x, _, success = cheby_ball(funcs)
-        if not success:
+        if not success or x is None:
             return None
         return torch.from_numpy(x).float()
 
