@@ -106,7 +106,7 @@ with torch.no_grad():
 
 ### Linear Regions of ReLU DNNs
 
-The utils class "`ReLUNet`" in "[compute.py](torchays/analysis/compute.py)" can get the number and functions of the Linear Regions of ReLU DNNs which only has ReLU activation in the framework without the other non-linearity layers.
+The utils class "`CPA`" in "[cpa.py](torchays/cpa/cpa.py)" can get the number and functions of the Linear Regions of the ReLU DNNs which only has ReLU activation in the framework without the other non-linearity layers.
 
 In "[regionsDemo.py](examples/regionsDemo.py)", a smaple implementation is shown to get the linear regions number of the ReLU DNN and draw the linear regions by the 2D data.
 

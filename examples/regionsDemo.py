@@ -4,7 +4,7 @@ import polytope as pc
 import torch
 
 from torchays import nn
-from torchays.analysis import ReLUNets
+from torchays.cpa import CPA
 
 GPU_ID = 0
 device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
@@ -46,24 +46,24 @@ class TestNet(nn.Module):
 
 
 net = TestNet((2,)).to(device)
-au = ReLUNets(device=device)
+au = CPA(device=device)
 
-funcs, areas, points = [], [], []
+funcs, regions, points = [], [], []
 
 
 def handler(point, functions, region):
     points.append(point)
     funcs.append(functions)
-    areas.append(region)
+    regions.append(region)
 
 
-num = au.get_region_counts(net, 1, depth=1, region_handler=handler)
+num = au.start(net, 1, region_handler=handler)
 ax = plt.subplot()
 for i in range(num):
     #  to <= 0
-    func, area, point = funcs[i], areas[i], points[i]
+    func, region, point = funcs[i], regions[i], points[i]
     # print(f"Func: {func}, area: {area}, point: {point}")
-    func = -area.view(-1, 1) * func
+    func = -region.view(-1, 1) * func
     func = func.numpy()
     A, B = func[:, :-1], -func[:, -1]
     p = pc.Polytope(A, B)

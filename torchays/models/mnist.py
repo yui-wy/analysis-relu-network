@@ -1,7 +1,7 @@
 import torch
 
 from .. import nn
-from ..analysis.model import Model
+from ..cpa.model import Model
 
 
 class LeNet(Model):
