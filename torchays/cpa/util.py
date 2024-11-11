@@ -1,3 +1,5 @@
+from typing import List, Tuple, TypeAlias
+
 import torch
 
 one = torch.ones(1)
@@ -31,3 +33,63 @@ def find_projection(x: torch.Tensor, hyperplanes: torch.Tensor) -> torch.Tensor:
     # p_point: [n, d]
     p_point = x - W * d.view(-1, 1)
     return p_point
+
+
+BoundTypes: TypeAlias = Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Tuple]
+
+
+def generate_bound_regions(
+    bounds: float | int | Tuple[float, float] | List[Tuple[float, float]],
+    dim: int = 2,
+) -> BoundTypes:
+    assert dim > 0, f"dim must be more than 0. [dim = {dim}]"
+    handler = _number_bound
+    if isinstance(bounds, tuple):
+        if isinstance(bounds[0], tuple):
+            handler = _tuple_bounds
+        else:
+            handler = _tuple_bound
+    return handler(bounds, dim)
+
+
+def _tuple_bound(bounds: Tuple[float, float], dim: int = 2) -> BoundTypes:
+    low, upper = _bound(bounds)
+    inner_point = torch.ones(dim) * (low + upper) / 2
+    lows, uppers = torch.zeros(dim) + low, torch.zeros(dim) + upper
+    return *_bound_regions(lows, uppers, dim), inner_point, (low, upper)
+
+
+def _tuple_bounds(bounds: Tuple[Tuple[float, float]], dim: int = 2) -> BoundTypes:
+    assert len(bounds) == dim, f"length of the bounds must match the dim [dim = {dim}]."
+    inner_point = torch.zeros(dim)
+    lows, uppers = torch.zeros(dim), torch.zeros(dim)
+    o_bound = []
+    for i in range(dim):
+        low, upper = _bound(bounds[i])
+        lows[i], uppers[i] = low, upper
+        inner_point[i] = (low + upper) / 2
+        o_bound.append((low, upper))
+    # for x_bias
+    o_bound.append((None, None))
+    return *_bound_regions(lows, uppers, dim), inner_point, tuple(o_bound)
+
+
+def _number_bound(bound: float | int, dim: int = 2) -> BoundTypes:
+    assert len(bound) == 2, f"length of the bounds must be 2. len(bounds) = {len(bound)}."
+    bounds = (-bound, bound)
+    return _tuple_bound(bounds, dim)
+
+
+def _bound(bound: Tuple[float, float]) -> Tuple[float, float]:
+    low, upper = bound
+    if upper < low:
+        low, upper = upper, low
+    return low, upper
+
+
+def _bound_regions(lows: torch.Tensor, uppers: torch.Tensor, dim: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    low_bound_functions = torch.cat([torch.eye(dim), -lows.unsqueeze(1)], dim=1)
+    upper_bound_functions = torch.cat([-torch.eye(dim), uppers.unsqueeze(1)], dim=1)
+    funcs = torch.cat([low_bound_functions, upper_bound_functions], dim=0)
+    region = torch.ones(dim * 2, dtype=torch.int8)
+    return funcs, region

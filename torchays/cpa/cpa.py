@@ -1,8 +1,8 @@
+import multiprocessing as mp
+import time
+from collections import deque
 from logging import Logger
 from math import floor
-import time
-import multiprocessing as mp
-from collections import deque
 from typing import Callable, Deque, Iterable, List, Tuple, TypeAlias
 
 import numpy as np
@@ -13,8 +13,8 @@ from ..nn.modules import BIAS_GRAPH, WEIGHT_GRAPH
 from ..utils import get_logger
 from .handler import BaseHandler, DefaultHandler
 from .model import Model
-from .optimization import lineprog_intersect, cheby_ball
-from .util import get_regions, find_projection, vertify
+from .optimization import cheby_ball, lineprog_intersect
+from .util import find_projection, get_regions, vertify, generate_bound_regions
 
 
 class RegionSet:
@@ -111,10 +111,10 @@ class WapperRegion:
             self.register(region)
 
 
-def _log_time(fun_name: str, indent: int = 0, is_log: bool = True):
+def _log_time(fun_name: str, indent: int = 0, logging: bool = True):
     def wapper(fun: Callable):
         def new_func(self, *args, **kwargs):
-            if self.is_log_time:
+            if not self.logging:
                 return result
             start = time.time()
             result = fun(self, *args, **kwargs)
@@ -122,7 +122,7 @@ def _log_time(fun_name: str, indent: int = 0, is_log: bool = True):
             self.logger.info(f"{' '*indent}[{fun_name}] took time: {t}s.")
             return result
 
-        if is_log:
+        if logging:
             return new_func
         return fun
 
@@ -149,13 +149,13 @@ class CPA:
         workers: int = 1,
         device: torch.device = torch.device("cpu"),
         logger: Logger = None,
-        is_log_time: bool = False,
+        logging: bool = True,
     ):
         self.workers = workers if workers > 0 else 1
         self.device = device
         self.one = torch.ones(1).double()
         self.logger = logger or get_logger("AnalysisReLUNetUtils-Console")
-        self.is_log_time = is_log_time
+        self.logging = logging
 
     def _find_functions(self, x: torch.Tensor, depth: int) -> torch.Tensor:
         """
@@ -174,7 +174,7 @@ class CPA:
             # (output.num, input.num + 1)
         return torch.cat([weight_graph, bias_graph], dim=1).cpu()
 
-    @_log_time("find child region inner point", 2, True)
+    @_log_time("find child region inner point", 2, False)
     def _find_region_inner_point(self, functions: torch.Tensor) -> Tuple[np.ndarray, float]:
         """
         Calculate the max radius of the insphere in the region to make the radius less than the distance of the insphere center to the all functions
@@ -193,7 +193,7 @@ class CPA:
             return None
         return torch.from_numpy(x).float()
 
-    @_log_time("optimize child region", 2, True)
+    @_log_time("optimize child region", 2, False)
     def _optimize_region(
         self,
         funcs: torch.Tensor,
@@ -210,7 +210,6 @@ class CPA:
         p_points = find_projection(c_inner_point, funcs)
         for i in range(optim_funcs.shape[0]):
             if not vertify(p_points[i], funcs, region):
-                # 没有验证成功，使用优化方法
                 pn_funcs = np.delete(optim_funcs, i, axis=0)
                 success = lineprog_intersect(optim_funcs[i], pn_funcs, optim_x, self.o_bounds)
                 if not success:
@@ -225,8 +224,6 @@ class CPA:
                 filter_region[i] = region[i]
         c_edge_funcs = torch.stack(c_edge_funcs)
         c_edge_region = torch.tensor(c_edge_region, dtype=torch.int8)
-        # print("neighbor", len(neighbor_regions))
-        # print("------------------")
         return c_edge_funcs, c_edge_region, filter_region, neighbor_regions
 
     def _optimize_child_region(
@@ -235,7 +232,6 @@ class CPA:
         c_region: torch.Tensor,
         p_funcs: torch.Tensor,
         p_region: torch.Tensor,
-        inner_point: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, list]:
         """
         1. Check if the region is existed.
@@ -252,7 +248,7 @@ class CPA:
         optimize_child_region_result = self._optimize_region(funcs, region, constraint_funcs, c_region, c_inner_point)
         return c_inner_point, *optimize_child_region_result
 
-    @_log_time("find intersect", 2)
+    @_log_time("find intersect", 2, logging=False)
     def _find_intersect(
         self,
         p_funcs: torch.Tensor,
@@ -275,7 +271,7 @@ class CPA:
         intersect_funs = torch.stack(intersect_funs, dim=0)
         return intersect_funs
 
-    @_log_time("handler regions", 2)
+    @_log_time("handler regions", 2, logging=True)
     def _handler_regions(
         self,
         p_funcs: torch.Tensor,
@@ -446,7 +442,7 @@ class CPA:
             self.logger = logger
         # Initialize the parameters
         dim = torch.Size(input_size).numel()
-        p_funcs, p_region, p_inner_point, self.o_bounds = _generate_bound_regions(bounds, dim)
+        p_funcs, p_region, p_inner_point, self.o_bounds = generate_bound_regions(bounds, dim)
         # Initialize the region set.
         region_set = RegionSet()
         region_set.register(p_funcs, p_region, p_inner_point, 0)
@@ -455,63 +451,3 @@ class CPA:
         counts = self._get_counts(region_set)
         self.logger.info(f"Region counts: {counts}.")
         return counts
-
-
-BoundTypes: TypeAlias = Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Tuple]
-
-
-def _generate_bound_regions(
-    bounds: float | int | Tuple[float, float] | List[Tuple[float, float]],
-    dim: int = 2,
-) -> BoundTypes:
-    assert dim > 0, f"dim must be more than 0. [dim = {dim}]"
-    handler = _number_bound
-    if isinstance(bounds, tuple):
-        if isinstance(bounds[0], tuple):
-            handler = _tuple_bounds
-        else:
-            handler = _tuple_bound
-    return handler(bounds, dim)
-
-
-def _tuple_bound(bounds: Tuple[float, float], dim: int = 2) -> BoundTypes:
-    low, upper = _bound(bounds)
-    inner_point = torch.ones(dim) * (low + upper) / 2
-    lows, uppers = torch.zeros(dim) + low, torch.zeros(dim) + upper
-    return *_bound_regions(lows, uppers, dim), inner_point, (low, upper)
-
-
-def _tuple_bounds(bounds: Tuple[Tuple[float, float]], dim: int = 2) -> BoundTypes:
-    assert len(bounds) == dim, f"length of the bounds must match the dim [dim = {dim}]."
-    inner_point = torch.zeros(dim)
-    lows, uppers = torch.zeros(dim), torch.zeros(dim)
-    o_bound = []
-    for i in range(dim):
-        low, upper = _bound(bounds[i])
-        lows[i], uppers[i] = low, upper
-        inner_point[i] = (low + upper) / 2
-        o_bound.append((low, upper))
-    # for x_bias
-    o_bound.append((None, None))
-    return *_bound_regions(lows, uppers, dim), inner_point, tuple(o_bound)
-
-
-def _number_bound(bound: float | int, dim: int = 2) -> BoundTypes:
-    assert len(bound) == 2, f"length of the bounds must be 2. len(bounds) = {len(bound)}."
-    bounds = (-bound, bound)
-    return _tuple_bound(bounds, dim)
-
-
-def _bound(bound: Tuple[float, float]) -> Tuple[float, float]:
-    low, upper = bound
-    if upper < low:
-        low, upper = upper, low
-    return low, upper
-
-
-def _bound_regions(lows: torch.Tensor, uppers: torch.Tensor, dim: int) -> Tuple[torch.Tensor, torch.Tensor]:
-    low_bound_functions = torch.cat([torch.eye(dim), -lows.unsqueeze(1)], dim=1)
-    upper_bound_functions = torch.cat([-torch.eye(dim), uppers.unsqueeze(1)], dim=1)
-    funcs = torch.cat([low_bound_functions, upper_bound_functions], dim=0)
-    region = torch.ones(dim * 2, dtype=torch.int8)
-    return funcs, region

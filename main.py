@@ -15,28 +15,28 @@ from experiment import Analysis, Experiment
 from torchays import nn
 from torchays.models import LeNet, TestTNetLinear, TestResNet
 
-GPU_ID = 5
+GPU_ID = 0
 SEED = 5
 NAME = "Linear"
 # ===========================================
 TYPE = RANDOM
 # ===========================================
 # Test-Net
-N_LAYERS = [32, 32, 32]
+N_LAYERS = [16, 16, 16]
 # ===========================================
 # Dataset
-N_SAMPLES = 10000
+N_SAMPLES = 1000
 DATASET_BIAS = 0
 # only GAUSSIAN_QUANTILES
 N_CLASSES = 2
 # only RANDOM
-IN_FEATURES = 4
+IN_FEATURES = 2
 # is download for mnist
 DOWNLOAD = False
 # ===========================================
 # Training
-MAX_EPOCH = 10000
-SAVE_EPOCH = [10000]
+MAX_EPOCH = 1000
+SAVE_EPOCH = [1000]
 BATCH_SIZE = 64
 LR = 1e-3
 # is training the network.
@@ -45,6 +45,8 @@ IS_TRAIN = True
 # Experiment
 IS_EXPERIMENT = True
 BOUND = (-1, 1)
+# the depth of the NN to draw
+DEPTH = -1
 # the number of the workers
 WORKERS = 1
 # with best epoch
@@ -52,9 +54,7 @@ BEST_EPOCH = False
 # ===========================================
 # Drawing
 # is drawing the region picture. Only for 2d input.
-IS_DRAW = False
-# the depth of the NN to draw
-DRAW_DEPTH = -1
+IS_DRAW = True
 # is drawing the 3d region picture.
 IS_DRAW_3D = False
 # is handlering the hyperplanes arrangement.
@@ -126,15 +126,15 @@ if __name__ == "__main__":
                 batch_size=BATCH_SIZE,
                 lr=LR,
             )
-        exp.linear_region(
+        exp.cpas(
             workers=WORKERS,
             best_epoch=BEST_EPOCH,
             bounds=BOUND,
+            depth=DEPTH,
             is_draw=IS_DRAW,
             is_draw_3d=IS_DRAW_3D,
             is_draw_hpas=IS_DRAW_HPAS,
             is_statistic_hpas=IS_STATISTIC_HPAS,
-            draw_depth=DRAW_DEPTH,
         )
         exp()
     if IS_ANALYSIS:

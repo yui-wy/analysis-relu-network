@@ -7,7 +7,7 @@ import torch
 from dataset import GAUSSIAN_QUANTILES, MOON, RANDOM, simple_get_data
 from experiment import Analysis, Experiment
 from torchays import nn
-from torchays.analysis import Model
+from torchays.cpa import Model
 from torchays.models import TestTNetLinear
 from torchays.nn.modules.batchnorm import BatchNorm1d, BatchNormNone
 from torchays.nn.modules.norm import Norm1d
@@ -169,7 +169,7 @@ if __name__ == "__main__":
                 train_handler=default_handler,
                 lr=LR,
             )
-        exp.linear_region(
+        exp.cpas(
             bounds=BOUND,
             is_draw=IS_DRAW,
             is_draw_3d=IS_DRAW_3D,
