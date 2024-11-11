@@ -602,6 +602,7 @@ class LinearRegion(_base):
         *,
         workers: int = 1,
         save_epoch: List[int] = [0, 0.1, 0.5, 1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 80, 100],
+        best_epoch: bool = False,
         bounds: Tuple[float] = (-1, 1),
         is_draw: bool = True,
         is_draw_3d: bool = False,
@@ -617,14 +618,15 @@ class LinearRegion(_base):
             save_epoch=save_epoch,
             device=device,
         )
+        self.workers = workers
         self.bounds = bounds
         self.is_draw = is_draw
         self.is_draw_3d = is_draw_3d
         self.is_draw_hpas = is_draw_hpas
         self.is_statistic_hpas = is_statistic_hpas
         self.is_hpas = is_draw_hpas or is_statistic_hpas
+        self.best_epoch = best_epoch
         self.draw_depth = draw_depth
-        self.workers = workers
 
     def get_region(self):
         net, dataset, n_classes = self._init_model()
@@ -635,8 +637,11 @@ class LinearRegion(_base):
         with torch.no_grad():
             for model_name in model_list:
                 epoch = float(model_name.split("_")[-1][:-4])
-                if epoch not in self.save_epoch and "best" not in model_name:
-                    continue
+                if epoch not in self.save_epoch:
+                    if self.best_epoch and "best" not in model_name:
+                        continue
+                    else:
+                        continue
                 print(f"Solve fileName: {model_name} ....")
                 save_dir = os.path.join(self.experiment_dir, os.path.splitext(model_name)[0])
                 os.makedirs(save_dir, exist_ok=True)
@@ -644,20 +649,21 @@ class LinearRegion(_base):
                 acc = self.val_net(net, val_dataloader).cpu().numpy()
                 print(f"Accuracy: {acc:.4f}")
                 handler = Handler()
+                logger = get_logger(f"region-{os.path.splitext(model_name)[0]}", os.path.join(save_dir, "region.log"))
                 region_num = cpa.start(
                     net,
                     bounds=self.bounds,
                     input_size=dataset.input_size,
                     depth=draw_depth,
                     handler=handler,
-                    logger=get_logger(f"region-{os.path.splitext(model_name)[0]}", os.path.join(save_dir, "region.log")),
+                    logger=logger,
                 )
                 print(f"Region counts: {region_num}")
                 if self.is_draw:
                     # draw fig
                     draw_dir = os.path.join(save_dir, f"draw-region-{draw_depth}")
                     os.makedirs(draw_dir, exist_ok=True)
-                    drawReginImage = DrawRegionImage(
+                    dri = DrawRegionImage(
                         region_num,
                         handler.funs,
                         handler.regions,
@@ -668,7 +674,7 @@ class LinearRegion(_base):
                         bounds=self.bounds,
                         device=self.device,
                     )
-                    drawReginImage.draw(self.is_draw_3d)
+                    dri.draw(self.is_draw_3d)
                 if self.is_hpas:
                     hpas = HyperplaneArrangements(
                         save_dir,
@@ -679,7 +685,6 @@ class LinearRegion(_base):
                         is_draw=self.is_draw_hpas,
                         is_statistic=self.is_statistic_hpas,
                     )
-
                 dataSaveDict = {
                     "funcs": handler.funs,
                     "regions": handler.regions,
@@ -735,11 +740,12 @@ class Experiment(_base):
     def linear_region(
         self,
         workers: int = 1,
+        best_epoch: bool = False,
+        bounds: Tuple[float] = (-1, 1),
         is_draw: bool = False,
         is_draw_3d: bool = False,
         is_draw_hpas: bool = False,
         is_statistic_hpas: bool = False,
-        bounds: Tuple[float] = (-1, 1),
         draw_depth: int = -1,
     ):
         linear_region = LinearRegion(
@@ -748,11 +754,12 @@ class Experiment(_base):
             dataset=self.dataset,
             save_epoch=self.save_epoch,
             workers=workers,
+            best_epoch=best_epoch,
+            bounds=bounds,
             is_draw=is_draw,
             is_draw_3d=is_draw_3d,
             is_draw_hpas=is_draw_hpas,
             is_statistic_hpas=is_statistic_hpas,
-            bounds=bounds,
             draw_depth=draw_depth,
             device=self.device,
         )

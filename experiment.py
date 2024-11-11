@@ -47,6 +47,8 @@ IS_EXPERIMENT = True
 BOUND = (-1, 1)
 # the number of the workers
 WORKERS = 1
+# with best epoch
+BEST_EPOCH = False
 # ===========================================
 # Drawing
 # is drawing the region picture. Only for 2d input.
@@ -126,6 +128,7 @@ if __name__ == "__main__":
             )
         exp.linear_region(
             workers=WORKERS,
+            best_epoch=BEST_EPOCH,
             bounds=BOUND,
             is_draw=IS_DRAW,
             is_draw_3d=IS_DRAW_3D,
