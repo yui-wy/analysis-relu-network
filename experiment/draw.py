@@ -51,14 +51,10 @@ class DrawRegionImage:
             self.funcs,
             self.regions,
             ax=ax,
-            color=lambda _: "w",
             edgecolor="gray",
-            linewidth=0.5,
-            linestyle="-",
             xlim=self.bounds,
             ylim=self.bounds,
         )
-        ax.tick_params(labelcolor="w")
         plt.savefig(os.path.join(self.save_dir, fileName))
         plt.clf()
         plt.close()
@@ -112,7 +108,6 @@ class DrawRegionImage:
         ax.set_ylim(*self.bounds)
         if color_bar:
             fig.colorbar(img)
-        ax.tick_params(labelcolor="w")
         plt.savefig(os.path.join(self.save_dir, fileName))
         plt.clf()
         plt.close()

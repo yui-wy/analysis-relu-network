@@ -14,7 +14,7 @@ from ..utils import get_logger
 from .handler import BaseHandler, DefaultHandler
 from .model import Model
 from .optimization import cheby_ball, lineprog_intersect
-from .util import find_projection, get_regions, vertify, generate_bound_regions
+from .util import find_projection, generate_bound_regions, get_regions, vertify
 
 
 class RegionSet:
@@ -151,16 +151,14 @@ class CPA:
         logger: Logger = None,
         logging: bool = True,
     ):
-        self.workers = workers if workers > 0 else 1
+        self.workers = workers if workers > 1 else 1
         self.device = device
         self.one = torch.ones(1).double()
-        self.logger = logger or get_logger("AnalysisReLUNetUtils-Console")
+        self.logger = logger or get_logger("AnalysisReLUNetUtils-Console", multi=(workers > 1))
         self.logging = logging
+        self._find_functions = self._find_function
 
-    def _find_functions(self, x: torch.Tensor, depth: int) -> torch.Tensor:
-        """
-        Get the list of the linear function before ReLU layer.
-        """
+    def _find_function(self, x: torch.Tensor, depth: int) -> torch.Tensor:
         x = x.float().to(self.device)
         x = x.reshape(*self.input_size).unsqueeze(dim=0)
         with torch.no_grad():
@@ -173,6 +171,13 @@ class CPA:
             bias_graph = bias_graph.reshape(-1, 1)
             # (output.num, input.num + 1)
         return torch.cat([weight_graph, bias_graph], dim=1).cpu()
+
+    def _find_function_multi(self, x: torch.Tensor, depth: int) -> torch.Tensor:
+        self.net.to(self.device)
+        funcs = self._find_function(x, depth)
+        # When using multi-processing, the network weights need to be placed on the CPU to ensure that the weights are not set to 0.
+        self.net.cpu()
+        return funcs
 
     @_log_time("find child region inner point", 2, False)
     def _find_region_inner_point(self, functions: torch.Tensor) -> Tuple[np.ndarray, float]:
@@ -189,7 +194,7 @@ class CPA:
         """
         funcs = functions.numpy()
         x, _, success = cheby_ball(funcs)
-        if not success:
+        if not success or x is None:
             return None
         return torch.from_numpy(x).float()
 
@@ -370,13 +375,12 @@ class CPA:
         depth: int,
     ):
         self.logger.info(f"Start to get regions. Depth: {depth+1}. ")
-        # Get the number of the parent region.
         print(f"Start to get regions. Depth: {depth+1}. ")
         count, next_regions = self._handler_regions(p_funcs, p_region, p_inner_point, c_funcs, depth)
         q.put((count, next_regions))
-        print(f"End processing")
 
     def _multiprocess_get_counts(self, region_set: RegionSet) -> int:
+        """This method of multi-process implementation will result in the inability to use multi-processing when searching the first layer."""
         counts: int = 0
         current_depth: int = -1
         q = mp.Manager().Queue(self.workers)
@@ -391,34 +395,33 @@ class CPA:
             p.start()
             print(f"-----process start! {p.pid}------")
             if len(jobs) >= self.workers or len(region_set) == 0:
-                print("wait process end.")
+                print("Wait for the process to end.")
                 while True:
-                    idx: List[int] = list()
+                    d_jobs: List[mp.Process] = list()
                     for i in range(len(jobs)):
                         job = jobs[i]
                         if job.is_alive():
                             continue
-                        # 若job结束
+                        d_jobs.append(job)
                         job.close()
-                        idx.append(i)
                         count, next_regions = q.get()
                         counts += count
                         region_set.registers(next_regions)
-                    if len(idx) == 0:
+                    if len(d_jobs) == 0:
                         continue
-                    for i in idx:
-                        jobs.pop(i)
-                    if len(region_set) > 0:
+                    for d_job in d_jobs:
+                        jobs.remove(d_job)
+                    if len(region_set) > 0 or len(jobs) == 0:
                         break
-                    if len(jobs) == 0:
-                        break
-                print(f"process num {len(jobs)}")
         return counts
 
     @_log_time("Region counts")
     def _get_counts(self, region_set: RegionSet) -> int:
-        # if self.workers > 1:
-        #     return self._multiprocess_get_counts(region_set)
+        if self.workers > 1:
+            # multi-process
+            self._find_functions = self._find_function_multi
+            return self._multiprocess_get_counts(region_set)
+        self.net.to(self.device)
         return self._single_get_counts(region_set)
 
     def start(
@@ -431,10 +434,9 @@ class CPA:
         logger: Logger = None,
     ):
         assert isinstance(net, Module), "the type of net must be \"BaseModule\"."
-        assert depth >= 0, "countLayers must >= 0."
         # Initialize the settings
-        self.net = net.to(self.device).graph()
-        self.last_depth = depth
+        self.net = net.graph()
+        self.last_depth = depth if depth >= 0 else self.net.n_relu
         self.input_size = input_size
         self.handler = handler
         if logger is not None:

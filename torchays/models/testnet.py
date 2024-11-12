@@ -73,7 +73,7 @@ class TestResNet(nn.Module):
         self.name = f"{name}-{layers}".replace(' ', '')
         self._is_no_res = is_no_res
         self.n_layers = len(layers)
-        self.n_relu = (self.n_layers - 1) * 2 + 1
+        self.n_relu = (self.n_layers - 1) * 2
         self.relu = nn.ReLU()
         self._norm_layer = norm_layer
         self.in_features = in_features

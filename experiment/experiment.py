@@ -209,7 +209,11 @@ class CPAs(_base):
                 acc = self.val_net(net, val_dataloader).cpu().numpy()
                 print(f"Accuracy: {acc:.4f}")
                 handler = Handler()
-                logger = get_logger(f"region-{os.path.splitext(model_name)[0]}", os.path.join(save_dir, "region.log"))
+                logger = get_logger(
+                    f"region-{os.path.splitext(model_name)[0]}",
+                    os.path.join(save_dir, "region.log"),
+                    multi=(self.workers > 1),
+                )
                 region_num = cpa.start(
                     net,
                     bounds=self.bounds,
