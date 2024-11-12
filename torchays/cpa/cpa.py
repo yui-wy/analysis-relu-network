@@ -295,7 +295,7 @@ class CPA:
             layer_regions = WapperRegion(c_regions[0])
             for c_region in layer_regions:
                 # Check and get the child region. Then, the neighbor regions will be found.
-                c_inner_point, c_edge_funcs, c_edge_region, filter_region, neighbor_regions = self._optimize_child_region(intersect_funcs, c_region, p_funcs, p_region, p_inner_point)
+                c_inner_point, c_edge_funcs, c_edge_region, filter_region, neighbor_regions = self._optimize_child_region(intersect_funcs, c_region, p_funcs, p_region)
                 if c_inner_point is None:
                     continue
                 # Add the region to prevent counting again.
@@ -377,7 +377,6 @@ class CPA:
         print(f"End processing")
 
     def _multiprocess_get_counts(self, region_set: RegionSet) -> int:
-        """Useless"""
         counts: int = 0
         current_depth: int = -1
         q = mp.Manager().Queue(self.workers)
