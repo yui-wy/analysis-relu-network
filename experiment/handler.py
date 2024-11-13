@@ -45,3 +45,25 @@ class Handler(BaseHandler):
         depth_hp_arrs.append(hp_arr)
         self.hyperplane_arrangements[depth] = depth_hp_arrs
         return
+
+
+class MultiHandler(BaseHandler):
+    # This Handler cannot do anything.
+    def __init__(self):
+        super().__init__()
+        self.funs = None
+        self.regions = None
+        self.points = None
+        self.hyperplane_arrangements = None
+
+    def region_handler(self, fun: torch.Tensor, region: torch.Tensor, point: torch.Tensor) -> None:
+        return
+
+    def inner_hyperplanes_handler(self, p_funs: torch.Tensor, p_regions: torch.Tensor, c_funs: torch.Tensor, intersect_funs: torch.Tensor | None, n_regions: int, depth: int) -> None:
+        return
+
+
+def get_handler(multi: bool):
+    if multi:
+        return MultiHandler()
+    return Handler()

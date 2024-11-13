@@ -3,17 +3,10 @@ import os
 import numpy as np
 import torch
 
-from dataset import (
-    GAUSSIAN_QUANTILES,
-    MNIST,
-    MNIST_TYPE,
-    MOON,
-    RANDOM,
-    simple_get_data,
-)
+from dataset import GAUSSIAN_QUANTILES, MNIST, MNIST_TYPE, MOON, RANDOM, simple_get_data
 from experiment import Analysis, Experiment
 from torchays import nn
-from torchays.models import LeNet, TestTNetLinear, TestResNet
+from torchays.models import LeNet, TestResNet, TestTNetLinear
 
 GPU_ID = 0
 SEED = 5
@@ -35,12 +28,12 @@ IN_FEATURES = 2
 DOWNLOAD = False
 # ===========================================
 # Training
+# is training the network.
+IS_TRAIN = True
 MAX_EPOCH = 1000
 SAVE_EPOCH = [1000]
 BATCH_SIZE = 64
 LR = 1e-3
-# is training the network.
-IS_TRAIN = True
 # ===========================================
 # Experiment
 IS_EXPERIMENT = True
@@ -67,8 +60,11 @@ IS_ANALYSIS = True
 WITH_DATASET = True
 # ===========================================
 # path
+TAG = ""
 root_dir = os.path.abspath("./")
 cache_dir = os.path.join(root_dir, "cache")
+if len(TAG) > 0:
+    cache_dir = os.path.join(cache_dir, TAG)
 save_dir = os.path.join(cache_dir, f"{TYPE}-{N_SAMPLES}-{IN_FEATURES}-{SEED}")
 
 

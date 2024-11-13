@@ -1,6 +1,6 @@
-from copy import deepcopy
 import math
 import os
+from copy import deepcopy
 from typing import Any, Callable, List, Tuple
 
 import torch
@@ -8,13 +8,12 @@ from torch.utils import data
 
 from dataset import Dataset
 from torchays import nn
-from torchays.cpa import Model, CPA
-
+from torchays.cpa import CPA, Model
 from torchays.utils import get_logger
 
-from .hpa import HyperplaneArrangements
 from .draw import DrawRegionImage
-from .handler import Handler
+from .handler import get_handler
+from .hpa import HyperplaneArrangements
 
 
 def accuracy(x, classes):
@@ -178,7 +177,7 @@ class CPAs(_base):
             save_epoch=save_epoch,
             device=device,
         )
-        self.workers = workers
+        self.workers, self.multi = self._works(workers)
         self.bounds = bounds
         self.is_draw = is_draw
         self.is_draw_3d = is_draw_3d
@@ -187,6 +186,12 @@ class CPAs(_base):
         self.is_hpas = is_draw_hpas or is_statistic_hpas
         self.best_epoch = best_epoch
         self.depth = depth
+
+    def _works(self, workers: int):
+        workers = math.ceil(workers)
+        if workers < 1:
+            return 1, False
+        return workers, True
 
     def run(self):
         net, dataset, n_classes = self._init_model()
@@ -208,23 +213,23 @@ class CPAs(_base):
                 net.load_state_dict(torch.load(os.path.join(self.model_dir, model_name), weights_only=False))
                 acc = self.val_net(net, val_dataloader).cpu().numpy()
                 print(f"Accuracy: {acc:.4f}")
-                handler = Handler()
+                handler = get_handler(self.multi)
                 logger = get_logger(
                     f"region-{os.path.splitext(model_name)[0]}",
                     os.path.join(save_dir, "region.log"),
-                    multi=(self.workers > 1),
+                    multi=self.multi,
                 )
                 region_num = cpa.start(
                     net,
                     bounds=self.bounds,
                     input_size=dataset.input_size,
                     depth=depth,
+                    # Warning: if multiprocessing is used, handler will do nothing.
                     handler=handler,
                     logger=logger,
                 )
                 print(f"Region counts: {region_num}")
                 if self.is_draw:
-                    # draw fig
                     draw_dir = os.path.join(save_dir, f"draw-region-{depth}")
                     os.makedirs(draw_dir, exist_ok=True)
                     dri = DrawRegionImage(

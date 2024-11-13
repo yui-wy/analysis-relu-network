@@ -1,4 +1,6 @@
-from typing import List, Tuple, TypeAlias
+from logging import Logger
+import time
+from typing import Callable, List, Tuple, TypeAlias
 
 import torch
 
@@ -93,3 +95,26 @@ def _bound_regions(lows: torch.Tensor, uppers: torch.Tensor, dim: int) -> Tuple[
     funcs = torch.cat([low_bound_functions, upper_bound_functions], dim=0)
     region = torch.ones(dim * 2, dtype=torch.int8)
     return funcs, region
+
+
+class LogClz:
+    logging: bool
+    logger: Logger
+
+
+def log_time(fun_name: str, indent: int = 0, logging: bool = True):
+    def wapper(fun: Callable):
+        def new_func(self: LogClz, *args, **kwargs):
+            if not self.logging:
+                return result
+            start = time.time()
+            result = fun(self, *args, **kwargs)
+            t = time.time() - start
+            self.logger.info(f"{' '*indent}[{fun_name}] took time: {t}s.")
+            return result
+
+        if logging:
+            return new_func
+        return fun
+
+    return wapper
