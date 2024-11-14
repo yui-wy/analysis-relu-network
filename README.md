@@ -1,4 +1,4 @@
-# analysis-relu-network
+# CPAExploration: Continuous Piecewise Affine Exploration
 
 A sample library for linear graph (weight and bias) of DNNs in [PyTorch](https://pytorch.org/). Now the library supports a few of modules. We are trying to make this library work like PyTorch.
 
@@ -6,38 +6,18 @@ A sample library for linear graph (weight and bias) of DNNs in [PyTorch](https:/
 
 - An thin extension of PyTorch's Module, called AysBaseModule, that simplifies the creation of certain graph models. See the example for an example using AysBaseModule.
 - This library can generate the linear graph of DNNs easily by forward process.
-
-## Support modules
-
-```python
-__all__ = [
-    "Module",
-    "ReLU",
-    "LeakyRule",
-    "BatchNorm1d",
-    "BatchNorm2d",
-    "BatchNorm3d",
-    "BatchNormNone",
-    "Sequential",
-    "Conv2d",
-    "Linear",
-    "AvgPool2d",
-    "MaxPool2d",
-    "AdaptiveAvgPool2d",
-    "Flatten",
-]
-```
-
-`We will update this library to support more modules.`
+- We will update this library to support more modules.
 
 ## Requirements
 
-- Python 3.10 or above
-- PyTorch 1.6 or above
-- Scipy 1.5.4 or above
+- Python        3.11 or above
+- pyTorch       1.6 or above
+- scipy         1.5.4 or above
+- matplotlib    3.6.3
+- torchversion  
 - Numpy
-- matplotlib
 - polytope
+- scikit-learn
 
 ## Example
 

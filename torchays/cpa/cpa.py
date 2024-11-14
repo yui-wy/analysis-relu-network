@@ -316,28 +316,6 @@ class CPA:
         c_edge_region = torch.tensor(c_edge_region, dtype=torch.int8)
         return c_edge_funcs, c_edge_region, filter_region, neighbor_regions
 
-    def _optimize_child_region(
-        self,
-        c_funcs: torch.Tensor,
-        c_region: torch.Tensor,
-        p_funcs: torch.Tensor,
-        p_region: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, list]:
-        """
-        1. Check if the region is existed.
-        2. Get the neighbor regions and the functions of the region edges.;
-        """
-        funcs, region = torch.cat([c_funcs, p_funcs], dim=0), torch.cat([c_region, p_region], dim=0)
-        # ax+b >= 0
-        constraint_funcs = region.view(-1, 1) * funcs
-        # 1. Check whether the region exists, the inner point will be obtained if existed.
-        c_inner_point: torch.Tensor | None = self._find_region_inner_point(constraint_funcs)
-        if c_inner_point is None:
-            return None, [], [], None, []
-        # 2. find the least edges functions to express this region and obtain neighbor regions.
-        optimize_child_region_result = self._optimize_region(funcs, region, constraint_funcs, c_region, c_inner_point)
-        return c_inner_point, *optimize_child_region_result
-
     def _nn_region_counts(
         self,
         funcs: torch.Tensor,
