@@ -189,7 +189,7 @@ class CPAs(_base):
 
     def _works(self, workers: int):
         workers = math.ceil(workers)
-        if workers < 1:
+        if workers <= 1:
             return 1, False
         return workers, True
 

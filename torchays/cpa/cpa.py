@@ -1,6 +1,6 @@
 import multiprocessing as mp
+from multiprocessing.reduction import ForkingPickler
 import os
-import time
 from logging import Logger
 from multiprocessing.pool import AsyncResult
 from typing import Callable, List, Tuple
@@ -79,8 +79,14 @@ class CPA:
     def _get_counts(self, net: Model, region_set: RegionSet) -> int:
         if self.workers == 1:
             return self._single_get_counts(net, region_set)
-        # multi-process
-        return self._multiprocess_get_counts(net, region_set)
+        # Multi-process
+        # Change the ForkingPickler, and stop share memory of torch.Tensor when using multiprocessiong.
+        # If share_memory is used, the large number of the fd will be created and lead to OOM.
+        _save_reducers = ForkingPickler._extra_reducers
+        ForkingPickler._extra_reducers = {}
+        counts = self._multiprocess_get_counts(net, region_set)
+        ForkingPickler._extra_reducers = _save_reducers
+        return counts
 
     def _single_get_counts(self, net: Model, region_set: RegionSet) -> int:
         counts: int = 0
@@ -124,10 +130,20 @@ class CPA:
                 error_callback=err_callback,
             )
             results.append(res)
+            # clean finished processes.
+            clean_results: List[AsyncResult] = list()
+            for i in range(len(results)):
+                res = results[i]
+                if not res.ready():
+                    continue
+                clean_results.append(res)
+            for res in clean_results:
+                results.remove(res)
             if len(region_set) != 0:
                 continue
             for res in results:
                 res.wait()
+        results.clear()
         pool.close()
         pool.join()
         return counts
