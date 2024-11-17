@@ -4,6 +4,8 @@ from typing import Deque, Iterable, List, Tuple
 
 import torch
 
+from .handler import BaseHandler
+
 
 class RegionSet:
     def __init__(self) -> None:
@@ -30,7 +32,7 @@ class RegionSet:
     ):
         self._regions.append((functions, region, inner_point, depth))
 
-    def registers(self, regions: Iterable[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]]):
+    def extend(self, regions: Iterable[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]]):
         self._regions.extend(regions)
 
     def __str__(self):
@@ -94,6 +96,38 @@ class WapperRegion:
         if not self._check(region):
             self.regions.append(region)
 
-    def registers(self, regions: List[torch.Tensor]):
+    def extend(self, regions: List[torch.Tensor]):
         for region in regions:
             self.register(region)
+
+
+class CPACache(object):
+    def __init__(self):
+        self.cpas: Deque[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = deque()
+        self.hyperplanes: Deque[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, int, int]] = deque()
+
+    def cpa(self, funcs: torch.Tensor, region: torch.Tensor, inner_point: torch.Tensor):
+        self.cpas.append((funcs, region, inner_point))
+
+    def hyperplane(
+        self,
+        p_funcs: torch.Tensor,
+        p_region: torch.Tensor,
+        c_funcs: torch.Tensor,
+        intersection_funcs: torch.Tensor,
+        n_regions: int,
+        depth: int,
+    ):
+        self.hyperplanes.append((p_funcs, p_region, c_funcs, intersection_funcs, n_regions, depth))
+
+    def handler(self, handler: BaseHandler):
+        for funcs, region, inner_point in self.cpas:
+            handler.region(funcs, region, inner_point)
+        self.cpas.clear()
+        for args in self.hyperplanes:
+            handler.inner_hyperplanes(*args)
+        self.hyperplanes.clear()
+
+    def extend(self, cache):
+        self.cpas.extend(cache.cpas)
+        self.hyperplanes.extend(cache.hyperplanes)

@@ -2,7 +2,7 @@ import torch
 
 
 class BaseHandler:
-    def region_handler(
+    def region(
         self,
         fun: torch.Tensor,
         region: torch.Tensor,
@@ -10,7 +10,7 @@ class BaseHandler:
     ):
         raise NotImplementedError()
 
-    def inner_hyperplanes_handler(
+    def inner_hyperplanes(
         self,
         p_funs: torch.Tensor,
         p_regions: torch.Tensor,
@@ -23,7 +23,7 @@ class BaseHandler:
 
 
 class DefaultHandler(BaseHandler):
-    def region_handler(
+    def region(
         self,
         fun: torch.Tensor,
         region: torch.Tensor,
@@ -31,7 +31,7 @@ class DefaultHandler(BaseHandler):
     ):
         return None
 
-    def inner_hyperplanes_handler(
+    def inner_hyperplanes(
         self,
         p_funs: torch.Tensor,
         p_regions: torch.Tensor,

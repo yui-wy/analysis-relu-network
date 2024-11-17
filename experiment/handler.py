@@ -9,15 +9,15 @@ from .hpa import HyperplaneArrangement
 
 class Handler(BaseHandler):
     def __init__(self) -> None:
-        self._init_region_handler()._init_inner_hyperplanes_handler()
+        self._init_region()._init_inner_hyperplanes()
 
-    def _init_region_handler(self):
+    def _init_region(self):
         self.funs = list()
         self.regions = list()
         self.points = list()
         return self
 
-    def region_handler(
+    def region(
         self,
         fun: torch.Tensor,
         region: torch.Tensor,
@@ -27,11 +27,11 @@ class Handler(BaseHandler):
         self.regions.append(region.cpu().numpy())
         self.points.append(point.cpu().numpy())
 
-    def _init_inner_hyperplanes_handler(self):
+    def _init_inner_hyperplanes(self):
         self.hyperplane_arrangements: Dict[int, List[HyperplaneArrangement]] = dict()
         return self
 
-    def inner_hyperplanes_handler(
+    def inner_hyperplanes(
         self,
         p_funs: torch.Tensor,
         p_regions: torch.Tensor,
@@ -45,25 +45,3 @@ class Handler(BaseHandler):
         depth_hp_arrs.append(hp_arr)
         self.hyperplane_arrangements[depth] = depth_hp_arrs
         return
-
-
-class MultiHandler(BaseHandler):
-    # This Handler cannot do anything.
-    def __init__(self):
-        super().__init__()
-        self.funs = None
-        self.regions = None
-        self.points = None
-        self.hyperplane_arrangements = None
-
-    def region_handler(self, fun: torch.Tensor, region: torch.Tensor, point: torch.Tensor) -> None:
-        return
-
-    def inner_hyperplanes_handler(self, p_funs: torch.Tensor, p_regions: torch.Tensor, c_funs: torch.Tensor, intersect_funs: torch.Tensor | None, n_regions: int, depth: int) -> None:
-        return
-
-
-def get_handler(multi: bool):
-    if multi:
-        return MultiHandler()
-    return Handler()

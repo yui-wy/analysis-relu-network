@@ -12,7 +12,7 @@ from torchays.cpa import CPA, Model
 from torchays.utils import get_logger
 
 from .draw import DrawRegionImage
-from .handler import get_handler
+from .handler import Handler
 from .hpa import HyperplaneArrangements
 
 
@@ -213,7 +213,7 @@ class CPAs(_base):
                 net.load_state_dict(torch.load(os.path.join(self.model_dir, model_name), weights_only=False))
                 acc = self.val_net(net, val_dataloader).cpu().numpy()
                 print(f"Accuracy: {acc:.4f}")
-                handler = get_handler(self.multi)
+                handler = Handler()
                 logger = get_logger(
                     f"region-{os.path.splitext(model_name)[0]}",
                     os.path.join(save_dir, "region.log"),
@@ -224,7 +224,6 @@ class CPAs(_base):
                     bounds=self.bounds,
                     input_size=dataset.input_size,
                     depth=depth,
-                    # Warning: if multiprocessing is used, handler will do nothing.
                     handler=handler,
                     logger=logger,
                 )
