@@ -142,6 +142,8 @@ class CPA:
                 continue
             for res in results:
                 res.wait()
+                if len(region_set) > 0:
+                    break
         results.clear()
         pool.close()
         pool.join()
