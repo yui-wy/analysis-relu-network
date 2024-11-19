@@ -102,14 +102,22 @@ class WapperRegion:
 
 
 class CPACache(object):
-    def __init__(self):
-        self.cpas: Deque[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = deque()
-        self.hyperplanes: Deque[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, int, int]] = deque()
+    def __init__(self, handler: BaseHandler):
+        self.handler = handler
+        self.cpa, self.hyperplane = self._empty, self._empty
+        self.is_handler = self.handler is not None
+        if self.is_handler:
+            self.cpas: Deque[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = deque()
+            self.hyperplanes: Deque[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, int, int]] = deque()
+            self.cpa, self.hyperplane = self._cpa, self._hyperplane
 
-    def cpa(self, funcs: torch.Tensor, region: torch.Tensor, inner_point: torch.Tensor):
+    def _empty(self, *args, **kargs):
+        return
+
+    def _cpa(self, funcs: torch.Tensor, region: torch.Tensor, inner_point: torch.Tensor):
         self.cpas.append((funcs, region, inner_point))
 
-    def hyperplane(
+    def _hyperplane(
         self,
         p_funcs: torch.Tensor,
         p_region: torch.Tensor,
@@ -120,14 +128,18 @@ class CPACache(object):
     ):
         self.hyperplanes.append((p_funcs, p_region, c_funcs, intersection_funcs, n_regions, depth))
 
-    def handler(self, handler: BaseHandler):
+    def __call__(self):
+        if not self.is_handler:
+            return
         for funcs, region, inner_point in self.cpas:
-            handler.region(funcs, region, inner_point)
+            self.handler.region(funcs, region, inner_point)
         self.cpas.clear()
         for args in self.hyperplanes:
-            handler.inner_hyperplanes(*args)
+            self.handler.inner_hyperplanes(*args)
         self.hyperplanes.clear()
 
     def extend(self, cache):
+        if not self.is_handler:
+            return
         self.cpas.extend(cache.cpas)
         self.hyperplanes.extend(cache.hyperplanes)

@@ -12,7 +12,7 @@ import torch
 from ..nn import Module
 from ..nn.modules import BIAS_GRAPH, WEIGHT_GRAPH
 from ..utils import get_logger
-from .handler import BaseHandler, DefaultHandler
+from .handler import BaseHandler
 from .model import Model
 from .optimization import cheby_ball, lineprog_intersect
 from .regions import CPACache, RegionSet, WapperRegion
@@ -53,7 +53,7 @@ class CPA:
         bounds: float | int | Tuple[float, float] | Tuple[Tuple[float, float]] = 1.0,
         depth: int = -1,
         input_size: tuple = (2,),
-        handler: BaseHandler = DefaultHandler(),
+        handler: BaseHandler = None,
         logger: Logger = None,
     ):
         assert isinstance(net, Module), "the type of net must be \"BaseModule\"."
@@ -91,7 +91,7 @@ class CPA:
 
     def _single_get_counts(self, net: Model, region_set: RegionSet) -> int:
         counts: int = 0
-        cpa_caches = CPACache()
+        cpa_caches = CPACache(self.handler)
         for p_funcs, p_region, p_inner_point, depth in region_set:
             c_funcs = self._functions(net, p_inner_point, depth)
             self.logger.info(f"Start to get regions. Depth: {depth+1}, ")
@@ -100,7 +100,7 @@ class CPA:
             counts += count
             cpa_caches.extend(cpa_cache)
             region_set.extend(child_regions)
-        cpa_caches.handler(self.handler)
+        cpa_caches()
         return counts
 
     def _work(self, p_funcs: torch.Tensor, p_region: torch.Tensor, p_inner_point: torch.Tensor, c_funcs: torch.Tensor, depth: int):
@@ -110,7 +110,7 @@ class CPA:
     def _multiprocess_get_counts(self, net: Model, region_set: RegionSet) -> int:
         """This method of multi-process implementation will result in the inability to use multi-processing when searching the first layer."""
         counts: int = 0
-        cpa_caches = CPACache()
+        cpa_caches = CPACache(self.handler)
 
         def callback(args) -> None:
             nonlocal counts
@@ -147,7 +147,7 @@ class CPA:
         results.clear()
         pool.close()
         pool.join()
-        cpa_caches.handler(self.handler)
+        cpa_caches()
         return counts
 
     def _functions(self, net: Model, x: torch.Tensor, depth: int):
