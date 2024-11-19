@@ -48,7 +48,7 @@ BEST_EPOCH = False
 # Drawing
 # is drawing the region picture. Only for 2d input.
 IS_DRAW = True
-# is drawing the 3d region picture.
+# is drawing the 3d region picture when "IS_DRAW" is True.
 IS_DRAW_3D = False
 # is handlering the hyperplanes arrangement.
 IS_DRAW_HPAS = False
