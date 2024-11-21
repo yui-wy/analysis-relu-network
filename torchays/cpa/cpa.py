@@ -12,7 +12,7 @@ import torch
 from ..nn import Module
 from ..nn.modules import BIAS_GRAPH, WEIGHT_GRAPH
 from ..utils import get_logger
-from .handler import BaseHandler, DefaultHandler
+from .handler import BaseHandler
 from .model import Model
 from .optimization import cheby_ball, lineprog_intersect
 from .regions import CPACache, RegionSet, WapperRegion
@@ -53,7 +53,7 @@ class CPA:
         bounds: float | int | Tuple[float, float] | Tuple[Tuple[float, float]] = 1.0,
         depth: int = -1,
         input_size: tuple = (2,),
-        handler: BaseHandler = DefaultHandler(),
+        handler: BaseHandler = None,
         logger: Logger = None,
     ):
         assert isinstance(net, Module), "the type of net must be \"BaseModule\"."
