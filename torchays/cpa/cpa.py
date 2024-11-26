@@ -194,7 +194,7 @@ class CPA:
         """
         Search the child regions.
         """
-        child_regions, cpa_cache = RegionSet(), CPACache()
+        child_regions, cpa_cache = RegionSet(), CPACache(self.handler)
         counts, n_regions = 0, 0
         intersect_funcs = self._find_intersect(p_funcs, p_region, p_inner_point, c_funcs)
         if intersect_funcs is None:
