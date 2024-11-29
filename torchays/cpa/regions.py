@@ -7,13 +7,13 @@ import torch
 from .handler import BaseHandler
 
 
-class Region:
+class CPAFunc:
     def __init__(
         self,
         funcs: torch.Tensor,
         region: torch.Tensor,
         point: torch.Tensor,
-        depth: int,
+        depth: int = 0,
     ):
         self.funcs = funcs
         self.region = region
@@ -21,33 +21,33 @@ class Region:
         self.depth = depth
 
 
-class RegionSet:
+class CPASet:
     def __init__(self) -> None:
-        self._regions: Deque[Region] = deque()
+        self._cpas: Deque[CPAFunc] = deque()
 
     def __iter__(self):
         return self
 
     def __next__(self):
         try:
-            return self._regions.popleft()
+            return self._cpas.popleft()
         except:
             raise StopIteration
 
     def __len__(self) -> int:
-        return len(self._regions)
+        return len(self._cpas)
 
     def register(
         self,
-        region: Region,
+        region: CPAFunc,
     ):
-        self._regions.append(region)
+        self._cpas.append(region)
 
-    def extend(self, regions: Iterable[Region]):
-        self._regions.extend(regions)
+    def extend(self, regions: Iterable[CPAFunc]):
+        self._cpas.extend(regions)
 
     def __str__(self):
-        return self._regions.__str__()
+        return self._cpas.__str__()
 
 
 class WapperRegion:
@@ -125,23 +125,23 @@ class CPACache(object):
     def _empty(self, *args, **kargs):
         return
 
-    def _empty_cpa(self, region: Region):
-        return region.depth != self.last_depth
+    def _empty_cpa(self, cpa: CPAFunc):
+        return cpa.depth != self.last_depth
 
-    def _cpa(self, region: Region) -> bool:
-        if region.depth != self.last_depth:
+    def _cpa(self, cpa: CPAFunc) -> bool:
+        if cpa.depth != self.last_depth:
             return False
-        self.cpas.append((region.funcs, region.region, region.point))
+        self.cpas.append((cpa.funcs, cpa.region, cpa.point))
         return True
 
     def _hyperplane(
         self,
-        p_region: Region,
+        p_cpa: CPAFunc,
         c_funcs: torch.Tensor,
         intersection_funcs: torch.Tensor,
         n_regions: int,
     ):
-        self.hyperplanes.append((p_region.funcs, p_region, c_funcs, intersection_funcs, n_regions, p_region.depth))
+        self.hyperplanes.append((p_cpa.funcs, p_cpa.region, c_funcs, intersection_funcs, n_regions, p_cpa.depth))
 
 
 class CPAHandler(object):
