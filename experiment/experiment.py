@@ -219,7 +219,7 @@ class CPAs(_base):
                     os.path.join(save_dir, "region.log"),
                     multi=self.multi,
                 )
-                region_num = cpa.start(
+                count = cpa.start(
                     net,
                     bounds=self.bounds,
                     input_size=dataset.input_size,
@@ -227,12 +227,12 @@ class CPAs(_base):
                     handler=handler,
                     logger=logger,
                 )
-                print(f"Region counts: {region_num}")
+                print(f"Region counts: {count}")
                 if self.is_draw:
                     draw_dir = os.path.join(save_dir, f"draw-region-{depth}")
                     os.makedirs(draw_dir, exist_ok=True)
                     dri = DrawRegionImage(
-                        region_num,
+                        count,
                         handler.funs,
                         handler.regions,
                         handler.points,
@@ -257,7 +257,7 @@ class CPAs(_base):
                     "funcs": handler.funs,
                     "regions": handler.regions,
                     "points": handler.points,
-                    "regionNum": region_num,
+                    "regionNum": count,
                     "accuracy": acc,
                 }
                 torch.save(dataSaveDict, os.path.join(save_dir, "net_regions.pkl"))

@@ -27,6 +27,8 @@ IN_FEATURES = 2
 # is download for mnist
 DOWNLOAD = False
 # ===========================================
+# Experiment
+IS_EXPERIMENT = True
 # Training
 # is training the network.
 IS_TRAIN = True
@@ -35,8 +37,6 @@ SAVE_EPOCH = [1000]
 BATCH_SIZE = 64
 LR = 1e-3
 # ===========================================
-# Experiment
-IS_EXPERIMENT = True
 BOUND = (-1, 1)
 # the depth of the NN to draw
 DEPTH = -1

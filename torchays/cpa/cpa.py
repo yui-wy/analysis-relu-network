@@ -68,8 +68,8 @@ class CPA:
             self.logger = logger
         # start
         if point is None:
-            return self._start(net, cpa_handler, bounds, input_size)
-        return self._start_point(net, point, cpa_handler, bounds)
+            return self._start(net, cpa_handler, bounds=bounds, input_size=input_size)
+        return self._start_point(net, point, cpa_handler, bounds=bounds)
 
     def _start(
         self,
@@ -80,7 +80,7 @@ class CPA:
         input_size: tuple = (2,),
     ):
         # Initialize the parameters
-        net.origin_size = input_size
+        net.origin_size = torch.Size(input_size)
         dim = net.origin_size.numel()
         # Initialize edge
         p_funcs, p_region, p_inner_point, self.o_bounds = generate_bound_regions(bounds, dim)
@@ -138,7 +138,7 @@ class CPA:
     @log_time("CPAFunc counts")
     def _get_counts(self, net: Model, cpa_set: CPASet, cpa_handler: CPAHandler) -> int:
         if self.workers == 1:
-            return self._single_get_counts(net, cpa_set)
+            return self._single_get_counts(net, cpa_set, cpa_handler)
         # Multi-process
         # Change the ForkingPickler, and stop share memory of torch.Tensor when using multiprocessiong.
         # If share_memory is used, the large number of the fd will be created and lead to OOM.
