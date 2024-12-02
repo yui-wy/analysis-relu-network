@@ -126,7 +126,7 @@ class CPACache(object):
         return
 
     def _empty_cpa(self, cpa: CPAFunc):
-        return cpa.depth != self.last_depth
+        return cpa.depth == self.last_depth
 
     def _cpa(self, cpa: CPAFunc) -> bool:
         if cpa.depth != self.last_depth:
