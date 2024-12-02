@@ -4,6 +4,7 @@ from dataset.toy import (
     GAUSSIAN_QUANTILES,
     MOON,
     RANDOM,
+    CLASSIFICATION,
     Dataset,
     from_path,
     gaussian_quantiles,
@@ -25,4 +26,5 @@ __all__ = [
     "RANDOM",
     "Dataset",
     "MNIST_TYPE",
+    "CLASSIFICATION",
 ]

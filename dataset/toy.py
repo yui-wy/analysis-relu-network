@@ -1,9 +1,10 @@
 import os
 from typing import Callable, Dict, Tuple, TypeAlias
 
+from joblib import PrintTime
 import numpy as np
 import torch
-from sklearn.datasets import make_gaussian_quantiles, make_moons
+from sklearn.datasets import make_gaussian_quantiles, make_moons, make_classification
 from torch.utils import data
 
 DataFunc: TypeAlias = Callable[[], Tuple[np.ndarray, np.ndarray]]
@@ -13,6 +14,7 @@ DataType: TypeAlias = str
 MOON: DataType = "moon"
 GAUSSIAN_QUANTILES: DataType = "gaussian quantiles"
 RANDOM: DataType = "random"
+CLASSIFICATION: DataType = "classification"
 
 
 class Dataset(data.Dataset):
@@ -52,6 +54,33 @@ def moon(
         return data + bias, classes
 
     return data_fun, 2
+
+
+def classification(
+    n_samples: int | Tuple[int, int] = 1000,
+    *,
+    in_features: int = 2,
+    n_classes: int = 3,
+    random_state: int | None = None,
+    norm_func: Callable[[np.ndarray], np.ndarray] = _norm,
+) -> Tuple[DataFunc, int]:
+    def data_fun() -> Tuple[np.ndarray, np.ndarray]:
+        data, classes = make_classification(
+            n_samples,
+            n_features=in_features,
+            n_informative=in_features,
+            n_clusters_per_class=1,
+            n_redundant=0,
+            n_classes=n_classes,
+            class_sep=10,
+            random_state=random_state,
+            hypercube=True,
+        )
+        if norm_func is not None:
+            data = norm_func(data)
+        return data, classes
+
+    return data_fun, n_classes
 
 
 def gaussian_quantiles(
@@ -142,6 +171,8 @@ def simple_get_data(
         data_fun, n_classes = save_data(*gaussian_quantiles(n_samples, n_classes=n_classes, bias=bias), save_path=data_path)
     if dataset == RANDOM:
         data_fun, n_classes = save_data(*random(n_samples, in_features, bias=bias), save_path=data_path)
+    if dataset == CLASSIFICATION:
+        data_fun, n_classes = save_data(*classification(n_samples, in_features=in_features, n_classes=n_classes, random_state=random_state), save_path=data_path)
     if (data_fun is None) or (n_classes is None):
         raise NotImplementedError(f"cannot find the dataset [{dataset}]")
     return Dataset(dataset, data_fun), n_classes

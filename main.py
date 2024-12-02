@@ -3,7 +3,7 @@ import os
 import numpy as np
 import torch
 
-from dataset import GAUSSIAN_QUANTILES, MNIST, MNIST_TYPE, MOON, RANDOM, simple_get_data
+from dataset import GAUSSIAN_QUANTILES, MNIST, MNIST_TYPE, MOON, RANDOM, CLASSIFICATION, simple_get_data
 from experiment import Analysis, Experiment
 from torchays import nn
 from torchays.models import LeNet, TestResNet, TestTNetLinear
@@ -12,7 +12,7 @@ GPU_ID = 0
 SEED = 5
 NAME = "Linear"
 # ===========================================
-TYPE = RANDOM
+TYPE = CLASSIFICATION
 # ===========================================
 # Test-Net
 N_LAYERS = [16, 16, 16]
@@ -31,7 +31,7 @@ DOWNLOAD = False
 IS_EXPERIMENT = True
 # Training
 # is training the network.
-IS_TRAIN = True
+IS_TRAIN = False
 MAX_EPOCH = 1000
 SAVE_EPOCH = [1000]
 BATCH_SIZE = 64
@@ -47,7 +47,7 @@ BEST_EPOCH = False
 # ===========================================
 # Drawing
 # is drawing the region picture. Only for 2d input.
-IS_DRAW = True
+IS_DRAW = False
 # is drawing the 3d region picture when "IS_DRAW" is True.
 IS_DRAW_3D = False
 # is handlering the hyperplanes arrangement.
