@@ -1,6 +1,7 @@
 import multiprocessing as mp
 import os
 from collections import deque
+from copy import deepcopy
 from logging import Logger
 from multiprocessing.pool import AsyncResult
 from multiprocessing.reduction import ForkingPickler
@@ -179,6 +180,7 @@ class CPA:
         def err_callback(msg):
             print(msg)
 
+        copy_handler = deepcopy(cpa_handler)
         pool = mp.Pool(processes=self.workers)
         results: Deque[AsyncResult] = deque()
         for cpa in cpa_set:
@@ -186,7 +188,7 @@ class CPA:
             # It will use the GPUs and CUDA, and there are many diffcult problems (memory copying, "spawn" model...) that need to be solved.
             c_funcs = self._functions(net, cpa.point, cpa.depth)
             # Multi-processing to search the CPAs.
-            res = pool.apply_async(func=self._work, args=(cpa, c_funcs, cpa_handler), callback=callback, error_callback=err_callback)
+            res = pool.apply_async(func=self._work, args=(cpa, c_funcs, copy_handler), callback=callback, error_callback=err_callback)
             # Clean finished processes.
             results = [r for r in results if not r.ready()]
             results.append(res)
