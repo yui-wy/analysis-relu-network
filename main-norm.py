@@ -1,3 +1,4 @@
+NAME = "Linear-single-bn"
 import os
 from typing import Dict
 
@@ -12,45 +13,76 @@ from torchays.models import TestTNetLinear
 from torchays.nn.modules.batchnorm import BatchNorm1d, BatchNormNone
 from torchays.nn.modules.norm import Norm1d
 
+import os
+
+import numpy as np
+import torch
+
+from dataset import GAUSSIAN_QUANTILES, MNIST, MNIST_TYPE, MOON, RANDOM, simple_get_data
+from experiment import Analysis, Experiment
+from torchays import nn
+from torchays.models import LeNet, TestResNet, TestTNetLinear
+
 GPU_ID = 0
 SEED = 5
-NAME = "Linear-single-bn"
-DATASET = GAUSSIAN_QUANTILES
-N_LAYERS = [32]
+NAME = "Linear"
+# ===========================================
+TYPE = MOON
+# ===========================================
+# Test-Net
+N_LAYERS = [16, 16, 16]
+# ===========================================
 # Dataset
 N_SAMPLES = 1000
-DATASET_BIAS = 1
+DATASET_BIAS = 0
 # only GAUSSIAN_QUANTILES
-N_CLASSES = 5
+N_CLASSES = 2
 # only RANDOM
 IN_FEATURES = 2
+# is download for mnist
+DOWNLOAD = False
+# ===========================================
 # Training
-MAX_EPOCH = 5000
-SAVE_EPOCH = [0, 10, 50, 100, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 5000]
-BATCH_SIZE = 32
+MAX_EPOCH = 100
+SAVE_EPOCH = [100]
+BATCH_SIZE = 64
 LR = 1e-3
-BOUND = (0, 2)
-
+# is training the network.
+IS_TRAIN = False
+# ===========================================
 # Experiment
 IS_EXPERIMENT = True
-# is use batchnorm
-IS_BN = True
-# is training the network.
-IS_TRAIN = True
+BOUND = (-1, 1)
+# the depth of the NN to draw
+DEPTH = -1
+# the number of the workers
+WORKERS = 1
+# with best epoch
+BEST_EPOCH = False
+# ===========================================
+# Drawing
 # is drawing the region picture. Only for 2d input.
 IS_DRAW = True
 # is drawing the 3d region picture.
 IS_DRAW_3D = False
 # is handlering the hyperplanes arrangement.
 IS_DRAW_HPAS = False
-IS_STATISTIC_HPAS = True
-
+IS_STATISTIC_HPAS = False
+# ===========================================
 # Analysis
-IS_ANALYSIS = True
+IS_ANALYSIS = False
 # draw the dataset distribution
 WITH_DATASET = True
 # analysis the batch norm
 WITH_BN = True
+# ===========================================
+# path
+TAG = ""
+root_dir = os.path.abspath("./")
+cache_dir = os.path.join(root_dir, "cache")
+if len(TAG) > 0:
+    cache_dir = os.path.join(cache_dir, TAG)
+save_dir = os.path.join(cache_dir, f"{TYPE}-{N_SAMPLES}-{IN_FEATURES}-{SEED}")
 
 
 def init_fun():
@@ -64,7 +96,7 @@ def norm(num_features):
     if not is_norm:
         return BatchNormNone(num_features)
     # freeze parameters
-    freeze = True
+    freeze = False
     # set init parameters
     set_parameters = None
     return Norm1d(num_features, freeze, set_parameters)
@@ -82,22 +114,20 @@ def net(n_classes: int) -> Model:
         layers=N_LAYERS,
         name=NAME,
         n_classes=n_classes,
-        norm_layer=_norm(IS_BN),
+        norm_layer=_norm(WITH_BN),
     )
 
 
-def dataset(save_dir: str, name: str = "dataset.pkl"):
+def dataset(
+    save_dir: str,
+    type: str = MOON,
+    name: str = "dataset.pkl",
+):
     def make_dataset():
-        return simple_get_data(
-            dataset=DATASET,
-            n_samples=N_SAMPLES,
-            noise=0.09,
-            random_state=5,
-            data_path=os.path.join(save_dir, name),
-            n_classes=N_CLASSES,
-            in_features=IN_FEATURES,
-            bias=DATASET_BIAS,
-        )
+        if type == MNIST_TYPE:
+            mnist = MNIST(root=os.path.join(save_dir, "mnist"), download=DOWNLOAD)
+            return mnist, len(mnist.classes)
+        return simple_get_data(dataset=type, n_samples=N_SAMPLES, noise=0.2, random_state=5, data_path=os.path.join(save_dir, name), n_classes=N_CLASSES, in_features=IN_FEATURES, bias=DATASET_BIAS)
 
     return make_dataset
 
@@ -149,20 +179,19 @@ def train_handler(
 
 if __name__ == "__main__":
     root_dir = os.path.abspath("./")
-    save_dir = os.path.join(root_dir, "cache", f"{DATASET}-{N_SAMPLES}-{SEED}")
     os.makedirs(save_dir, exist_ok=True)
     device = torch.device('cuda', GPU_ID) if torch.cuda.is_available() else torch.device('cpu')
     if IS_EXPERIMENT:
         exp = Experiment(
             save_dir=save_dir,
-            net=net,
-            dataset=dataset(save_dir),
+            net=net(type=TYPE),
+            dataset=dataset(save_dir, type=TYPE),
             init_fun=init_fun,
             save_epoch=SAVE_EPOCH,
             device=device,
         )
         if IS_TRAIN:
-            default_handler = train_handler if IS_BN else None
+            default_handler = train_handler if WITH_BN else None
             exp.train(
                 max_epoch=MAX_EPOCH,
                 batch_size=BATCH_SIZE,
@@ -170,15 +199,18 @@ if __name__ == "__main__":
                 lr=LR,
             )
         exp.cpas(
+            workers=WORKERS,
+            best_epoch=BEST_EPOCH,
             bounds=BOUND,
+            depth=DEPTH,
             is_draw=IS_DRAW,
             is_draw_3d=IS_DRAW_3D,
             is_draw_hpas=IS_DRAW_HPAS,
             is_statistic_hpas=IS_STATISTIC_HPAS,
         )
         exp()
-        if IS_BN:
-            # 保存batch_norm
+        if WITH_BN:
+            # batch_norm
             batch_norm_path = os.path.join(exp.get_root(), f"batch_norm.pkl")
             torch.save(batch_norm_data, batch_norm_path)
     if IS_ANALYSIS:

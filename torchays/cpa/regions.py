@@ -43,8 +43,8 @@ class CPASet:
     ):
         self._cpas.append(region)
 
-    def extend(self, regions: Iterable[CPAFunc]):
-        self._cpas.extend(regions)
+    def extend(self, cpa_set):
+        self._cpas.extend(cpa_set._cpas)
 
     def __str__(self):
         return self._cpas.__str__()
