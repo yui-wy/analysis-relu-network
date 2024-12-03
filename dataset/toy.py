@@ -1,7 +1,6 @@
 import os
 from typing import Callable, Dict, Tuple, TypeAlias
 
-from joblib import PrintTime
 import numpy as np
 import torch
 from sklearn.datasets import make_gaussian_quantiles, make_moons, make_classification
@@ -61,6 +60,7 @@ def classification(
     *,
     in_features: int = 2,
     n_classes: int = 3,
+    bias: int = 0,
     random_state: int | None = None,
     norm_func: Callable[[np.ndarray], np.ndarray] = _norm,
 ) -> Tuple[DataFunc, int]:
@@ -78,7 +78,7 @@ def classification(
         )
         if norm_func is not None:
             data = norm_func(data)
-        return data, classes
+        return data + bias, classes
 
     return data_fun, n_classes
 
@@ -172,7 +172,7 @@ def simple_get_data(
     if dataset == RANDOM:
         data_fun, n_classes = save_data(*random(n_samples, in_features, bias=bias), save_path=data_path)
     if dataset == CLASSIFICATION:
-        data_fun, n_classes = save_data(*classification(n_samples, in_features=in_features, n_classes=n_classes, random_state=random_state), save_path=data_path)
+        data_fun, n_classes = save_data(*classification(n_samples, in_features=in_features, n_classes=n_classes, bias=bias, random_state=random_state), save_path=data_path)
     if (data_fun is None) or (n_classes is None):
         raise NotImplementedError(f"cannot find the dataset [{dataset}]")
     return Dataset(dataset, data_fun), n_classes
